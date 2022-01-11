@@ -1,6 +1,6 @@
 # CDR
 
-This repository contains the codebase for the CDR algorithm described in the manuscript *"Spectral detection of condition-specific biological pathways in single-cell gene expression data"*.
+This repository contains the codebase for the CDR algorithm described in the manuscript **"Spectral detection of condition-specific biological pathways in single-cell gene expression data"**.
 
 # Installation
 
