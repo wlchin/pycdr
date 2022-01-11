@@ -1,0 +1,7 @@
+anndata==0.7.6
+scipy
+dask-ml
+tqdm
+pandas
+numpy==1.20.0
+statsmodels
