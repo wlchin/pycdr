@@ -2,7 +2,7 @@
 
 from setuptools import setup
 
-setup(name='pycdr',
+setup(name='cdr_py',
       version='0.0.1',
       packages=['pycdr',
                 'pycdr.test'],
@@ -10,5 +10,6 @@ setup(name='pycdr',
       python_requires='>3.5',
       author='WL Chin',
       author_email="melvin.chin@research.uwa.edu.au",
-      url = "https://github.com/wlchin/pycdr"
+      url = "https://github.com/wlchin/pycdr",
+      description = "CDR algorithm for multi-condition single-cell data"
       )
