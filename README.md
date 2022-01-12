@@ -4,9 +4,9 @@ This repository contains the codebase for the CDR algorithm described in the man
 
 # Installation
 
-CDR runs on python 3 and has been tested on python versions 3.5 through 3.9. It is strongly recommended that the installation is performed in a virtual environment. The most recent installation can be obtained by cloning the repository and installing via:
+CDR runs on python 3 and has been tested on python versions 3.5 through 3.9. It is strongly recommended that the installation is performed in a virtual environment. The most recent installation can be obtained by cloning the repository, navigating to the folder containing the setup.py file and installing via:
 
-	pip setup.py install
+	pip install .
 	
 
 # Usage
