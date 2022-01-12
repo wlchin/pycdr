@@ -13,8 +13,8 @@ CDR runs on python 3 and has been tested on python versions 3.5 through 3.9. It 
 
 The basic workflow is demonstrated below. As input, CDR requires a pre-prepared anndata object. Genes can be filtered based on variance or count criteria to reduce computation time. The condition of interest should be contained within as a column in the anndata obs. dataframe. It uses data from the count matrix (X) to construct co-expression matrices. Count data should be log-transformed. 
 
-		run_CDR_analysis(anndata_object, condition_of_interest)
-		calcalate_enrichment(anndata_object)
+	run_CDR_analysis(anndata_object, condition_of_interest)
+	calculate_enrichment(anndata_object)
 
 # Example workflows
 
