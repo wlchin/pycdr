@@ -5,16 +5,20 @@ import anndata as ad
 
 
 def filter_genecounts_percent(adata, cell_fraction, median_count_above_zero):
-    """
-    filter function for counts
+    """filter function for counts
+
+    implements a gene count filter based on percentage of cells and median count,
+    as per SCENIC.
     
-    :param adata: anndata object to be filtered
-    :param pheno: phenotype to filter on
-    :param percent_cells: the percent of cells which should contain the gene for total gene filtering
-    :param small_pheno_frac: the fraction of the smallest phenotype containing the gene
-    :param count_above_zero: count above the median that is used for total gene filtering
+    Args:
+        adata: anndata object to be filtered
+        pheno: phenotype to filter on
+        percent_cells: the percent of cells which should contain the gene for total gene filtering
+        small_pheno_frac: the fraction of the smallest phenotype containing the gene
+        count_above_zero: count above the median that is used for total gene filtering
     
-    :returns adata: filtered anndata object
+    Returns 
+        adata: filtered anndata object
     """
     if ss.issparse(adata.X):
         matdense = adata.X.toarray()
@@ -30,7 +34,22 @@ def filter_genecounts_percent(adata, cell_fraction, median_count_above_zero):
     return adata
     
 def filter_genecounts_numcells(adata, count_threshold, min_expressed_cells):
+    """filter function for counts
 
+    implements a gene count filter based on percentage of cells and median count,
+    as per SCENIC.
+    
+    Args:
+        adata: anndata object to be filtered
+        pheno: phenotype to filter on
+        percent_cells: the percent of cells which should contain the gene for total gene filtering
+        small_pheno_frac: the fraction of the smallest phenotype containing the gene
+        count_above_zero: count above the median that is used for total gene filtering
+    
+    Returns 
+        adata: filtered anndata object
+    """
+ 
     num_cells_thresh = min_expressed_cells
     
     if ss.issparse(adata.X):
@@ -46,8 +65,21 @@ def filter_genecounts_numcells(adata, count_threshold, min_expressed_cells):
     return adata
 
 def get_top_genes(adata, i):
+    """filter function for counts
 
-    """retrieves top genes from each factor loadings"""
+    implements a gene count filter based on percentage of cells and median count,
+    as per SCENIC.
+    
+    Args:
+        adata: anndata object to be filtered
+        pheno: phenotype to filter on
+        percent_cells: the percent of cells which should contain the gene for total gene filtering
+        small_pheno_frac: the fraction of the smallest phenotype containing the gene
+        count_above_zero: count above the median that is used for total gene filtering
+    
+    Returns 
+        adata: filtered anndata object
+    """
     
     import pandas as pd
     sigs = adata.var.index.to_list()
