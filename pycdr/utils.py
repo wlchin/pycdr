@@ -34,20 +34,15 @@ def filter_genecounts_percent(adata, cell_fraction, median_count_above_zero):
     return adata
     
 def filter_genecounts_numcells(adata, count_threshold, min_expressed_cells):
-    """filter function for counts
+    """filters cells based on gene content
 
-    implements a gene count filter based on percentage of cells and median count,
-    as per SCENIC.
-    
     Args:
-        adata: anndata object to be filtered
-        pheno: phenotype to filter on
-        percent_cells: the percent of cells which should contain the gene for total gene filtering
-        small_pheno_frac: the fraction of the smallest phenotype containing the gene
-        count_above_zero: count above the median that is used for total gene filtering
-    
-    Returns 
-        adata: filtered anndata object
+        adata (anndata): anndata object
+        count_threshold (int): number of counts as cutoff
+        min_expressed_cells (int): desired cutoff for cells
+
+    Returns:
+        anndata: inplace modification of anndata
     """
  
     num_cells_thresh = min_expressed_cells

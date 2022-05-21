@@ -2,13 +2,20 @@ import pandas as pd
 from scipy.stats import rankdata
 import numpy as np
 import anndata as ad
-import scipy
 import tqdm
 import logging
 
 logger = logging.getLogger(__name__)
 
 def create_rank_matrix(adata):
+    """create ranking matrix
+
+    Args:
+        adata (anndata): anndata of interest
+
+    Returns:
+        arrank: ranking matrix
+    """
     arr = adata.X
     import scipy
     if scipy.sparse.issparse(arr):
@@ -53,7 +60,24 @@ def calculate_proportions(adata, cols, pmat, thresh = 0.05):
     return pval_obj, ct, nobs, nobs2, truthcol
 
 def calculate_enrichment(adata, cols, factor_list, nperm, genecol, thresh, seed = 42):
-    
+    """Peforms enrichment test on factor loadings
+
+        For each factor loadings, this function performs ssGSEA 
+        (single sample gsea) on each assesses statistical significance
+        using a test of proportions 
+
+    Args:
+        adata (AnnData): anndata object in question
+        cols (str): phenotype for testing
+        factor_list (list): list of factors in the uns for testing
+        nperm (int): number of permutations for ssGSEA
+        genecol (str): name of column for genes
+        thresh (float): threshold for "active" gene set
+        seed (int, optional): for reproducibility. Defaults to 42.
+
+    Returns:
+        AnnData : in place modification of uns dict
+    """
     dict_res = {}
     dict_res_prop = {}
     

@@ -1,9 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Created on Mon Jul  5 13:12:56 2021
-@author: weeloongchin
-"""
 
 import numpy as np
 import scipy.sparse as ss
@@ -20,19 +14,14 @@ logger = logging.getLogger(__name__)
 
 
 def run_CDR_analysis(data, phenotype, capvar = 0.95, pernum = 2000, thres = 0.05):
-    """
-    input:
-    :param data: Anndata object
-    phenotype: column in obs df
-    backend: dask vs sparse
-    num_factor_loadings: choose factor loadings
-    num_perm: choose permutation number
-    pval_threshold: pval post correction
-    gene_quantile: threshold for declaring interesting genes
-    
-    output:
-    Anndata object with results appended to uns 
-    
+    """Main CDR analysis function
+
+    Args:
+        data (anndata): _description_
+        phenotype (str): _description_
+        capvar (float, optional): _description_. Defaults to 0.95.
+        pernum (int, optional): _description_. Defaults to 2000.
+        thres (float, optional): _description_. Defaults to 0.05.
     """
     start = time.time()
     
