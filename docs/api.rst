@@ -22,32 +22,12 @@ Cell filtering
 
 CDR algorithm
 -------------
-    
-**Decomposition**
-
-SVD function 
 
 .. autosummary::
     :toctree: .
 	     
     pycdr.pycdr.run_CDR_analysis
-    
-**Permutation and thresholding**
-
-Module specific functions for permutations
-
-.. autosummary::
-    :toctree: .
-
-    pycdr.perm.create_rank_matrix
-
-Enrichment
-----------
+    pycdr.perm.calculate_enrichment
 
 
-
-
-
-Utility
--------
 
