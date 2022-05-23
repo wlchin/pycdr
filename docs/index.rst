@@ -12,7 +12,7 @@ CDR-g extends the CDR algorithm [#f1]_ initially proposed by Dr Leonardo Portes 
 
 The source code for this package is available on `github <https://github.com/wlchin/pycdr>`_.
 
-The CDR-g workflow, provided as a separate `repository <https://github.com/wlchin/CDR_workflows>_` demonstrates example use-cases of CDR-g and reproduces the results in the manuscript.
+The CDR-g workflow, provided as a separate `repository <https://github.com/wlchin/CDR_workflows>`_ demonstrates example use-cases of CDR-g and reproduces the results in the manuscript.
 
 Motivation
 ==========
