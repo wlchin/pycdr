@@ -26,4 +26,6 @@ To run the full workflows, please install [scanpy](https://scanpy-tutorials.read
 
 	pip install scanpy[leiden] bbknn enrichment_utils
 
+# Documentation
 
+CDR-g's documentation is available [here](http://cdr-g.readthedocs.io/)
