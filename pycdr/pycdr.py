@@ -14,14 +14,19 @@ logger = logging.getLogger(__name__)
 
 
 def run_CDR_analysis(data, phenotype, capvar = 0.95, pernum = 2000, thres = 0.05):
-    """Main CDR analysis function
+    """Main CDR-g analysis function
+
+        The key step in CDR-g is an SVD-decomposition on gene co-expression matrices.
+        Depending on the sequencing platform, this SVD step can produce thousands of
+        factor loadings. By default, CDR-g selects number of factor loadings which 
+        captures 95% of variance in the dataset.
 
     Args:
-        data (anndata): _description_
-        phenotype (str): _description_
-        capvar (float, optional): _description_. Defaults to 0.95.
-        pernum (int, optional): _description_. Defaults to 2000.
-        thres (float, optional): _description_. Defaults to 0.05.
+        data (anndata): anndata object of interest
+        phenotype (str): condition of interest
+        capvar (float, optional): specifies the number of factor loadings to examine. Defaults to 0.95.
+        pernum (int, optional): number of permutations to determine importance score. Defaults to 2000.
+        thres (float, optional): cut-off for permutation importance to select genes. Defaults to 0.05.
     """
     start = time.time()
     
