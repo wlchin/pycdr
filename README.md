@@ -20,7 +20,7 @@ The basic workflow is demonstrated below. As input, CDR-g requires a pre-prepare
 
 # Example workflows
 
-Three example snakemake workflows are provided in a separate [repository](https://github.com/wlchin/CDR_workflows). These workflows generate the results and describe preprocessing steps for each dataset in the manuscript. These CDR analyses use the visualisation and preprocessing functions provided in other single cell packages. 
+Three example snakemake workflows are provided in a separate [repository](https://github.com/wlchin/CDR_workflows). These workflows generate the results and describe preprocessing steps for each dataset in the manuscript. These CDR-g analyses use the visualisation and preprocessing functions provided in other single cell packages. 
 
 To run the full workflows, please install [scanpy](https://scanpy-tutorials.readthedocs.io/en/latest/#), [bbknn](https://bbknn.readthedocs.io/en/latest/) (to allow dataset integration) and enrichment_utils (a simple wrapper around goatools to allow enrichment analysis on anndata objects analysed by CDR-g).
 
