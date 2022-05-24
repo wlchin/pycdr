@@ -6,16 +6,16 @@
 Installation
 ============
 
-CDR-g runs on python 3 and has been tested on python versions 3.5 through 3.9. It is strongly recommended that the installation is performed in a virtual environment. CDR is available on pyPI via:
+CDR-g runs on python 3 and has been tested on python versions 3.5 through 3.9. It is strongly recommended that the installation is performed in a virtual environment. CDR-g is available on pyPI via:
 	
-.. code-block::python
+.. code-block::
 
 	pip install cdr-py
 
 For enrichment of gene sets, one can also install the enrichment_utils package:
 
-.. code-block::python
+.. code-block::
 
     pip install enrichment_utils
 
-CDR-g does not require scanpy as a dependency but integrates with a scanpy workflow, so a scanpy installation is recommended for analysis.
+CDR-g does not require scanpy as a dependency but integrates well with a scanpy workflow. A scanpy installation is recommended for analysis.
