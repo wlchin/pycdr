@@ -31,9 +31,14 @@ CDR-g overcomes these limitations, allowing sensitive, condition-dependent varia
    installation.rst
    algorithm.rst
    getting_started.rst
-   example_analysis.rst
    api.rst
-   
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Examples:
+
+   example_analysis.rst
+
 Reference
 =========
 

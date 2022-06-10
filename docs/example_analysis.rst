@@ -6,7 +6,7 @@ Introduction
 
 Here, we analyse the a subset of the human peripheral blood dataset provided in Kang et al. This is a dataset of human peripheral blood cells, divided into an interferon beta stimulated dataset and one without. We first download the dataset from the github repository.
 
-.. code-block::
+.. code-block:: shell
 
 	! wget https://github.com/wlchin/CDR_workflows/raw/main/monocytes/resources/raw_monocyte_CD14.h5ad
 
@@ -50,9 +50,9 @@ The resulting gene expression programs extracted by CDR-g, which show variation 
 
 To better understand these genes, We perform gene set enrichment on these gene sets. We use enrichment_utils, a simple wrapper around the goatools package. Enrichment using goatools requires an ontology (in this case the PANTHER GO-SLIM ontology) and the NCBIs gene2go mapping, so we download these accordingly. 
 
-.. code-block::
+.. code-block:: shell
 
-	! wget http://data.pantherdb.org/PANTHER17.0/ontology/PANTHERGOslim.obo
+    ! wget http://data.pantherdb.org/PANTHER17.0/ontology/PANTHERGOslim.obo
     ! wget https://ftp.ncbi.nlm.nih.gov/gene/DATA/gene2go.gz
     ! tar -xzvf gene2go.gz
 
