@@ -18,4 +18,4 @@ For enrichment of gene sets, one can also install the enrichment_utils package:
 
     pip install enrichment_utils
 
-CDR-g does not require scanpy as a dependency but integrates well with a scanpy workflow. A scanpy installation is recommended for analysis.
+CDR-g does not require `scanpy <https://scanpy.readthedocs.io/>`_ as a dependency but integrates well with it. A `scanpy <https://scanpy.readthedocs.io/>`_ installation is therefore recommended for analysis.

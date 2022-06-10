@@ -1,3 +1,5 @@
+.. _monocyte-example:
+
 Monocyte dataset 
 ================
 
@@ -45,6 +47,10 @@ Briefly, this CDR function wraps three critical steps: (1) The construction and 
 
 Running gene set enrichment
 ---------------------------
+
+.. note::
+
+    This analysis is optional. 
 
 The resulting gene expression programs extracted by CDR-g, which show variation between conditions, can be found in the unstructured annotation (anndata.uns) of the anndata object. These results are stored as a dictionary of lists, with each key corresponding to the variable genes found in each corresponding factor loading. 
 

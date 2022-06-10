@@ -1,6 +1,8 @@
 Algorithm description
 =================================
 
+The CDR-g approach extends currently available methods for differential expression and differential co-expression to multi-condition data. Briefly, condition-specific variation is captured in by first constructing condition-specific co-expression matrices, which are simulatenously interrogated by applying spectral decomposition to their concatenated product.
+
 .. image:: algorithm.png
    :width: 500px
 
