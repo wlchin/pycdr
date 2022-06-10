@@ -4,7 +4,7 @@ Monocyte dataset
 Introduction
 ------------
 
-Here, we analyse the a subset of the human peripheral blood dataset provided in Kang et al [fn1]_. This is a monocyte subset of a dataset of human peripheral blood cells, divided into an interferon-beta stimulated vs treatment naive population. We first download the dataset from the github repository:
+Here, we analyse the a subset of the human peripheral blood dataset provided in Kang et al [#fn1]_. This is a monocyte subset of a dataset of human peripheral blood cells, divided into an interferon-beta stimulated vs treatment naive population. We first download the dataset from the github repository:
 
 .. code-block:: shell
 
@@ -48,7 +48,7 @@ Running gene set enrichment
 
 The resulting gene expression programs extracted by CDR-g, which show variation between conditions, can be found in the unstructured annotation (anndata.uns) of the anndata object. These results are stored as a dictionary of lists, with each key corresponding to the variable genes found in each corresponding factor loading. 
 
-To better understand these genes, We perform gene set enrichment on these gene sets. We use enrichment_utils, a simple wrapper around the goatools [fn2]_ package. Enrichment using goatools requires an ontology (in this case the PANTHER GO-SLIM ontology) and the NCBIs gene2go mapping, so we download these accordingly. 
+To better understand these genes, We perform gene set enrichment on these gene sets. We use enrichment_utils, a simple wrapper around the goatools [#fn2]_ package. Enrichment using goatools requires an ontology (in this case the PANTHER GO-SLIM ontology) and the NCBIs gene2go mapping, so we download these accordingly. 
 
 .. code-block:: shell
 
@@ -72,7 +72,7 @@ We run the ontology analysis with the code block below. We examine only enriched
 Comparing gene set activation between condition
 -----------------------------------------------
 
-The final stage of the analysis is to identify gene sets which are more activated between conditions of interest. We have implemented a simple test of proportions that compares the number of cells with "activated gene set" in each condition, which we calculate gene set activation using ssGSEA [fn3]_. Below, we provide all factors as a list and calculate whether a gene set is activated based on a permutation test, thresholded at 0.05.
+The final stage of the analysis is to identify gene sets which are more activated between conditions of interest. We have implemented a simple test of proportions that compares the number of cells with "activated gene set" in each condition, which we calculate gene set activation using ssGSEA [#fn3]_. Below, we provide all factors as a list and calculate whether a gene set is activated based on a permutation test, thresholded at 0.05.
 
 .. code-block:: python
 
@@ -85,8 +85,8 @@ The final stage of the analysis is to identify gene sets which are more activate
 References
 ----------
 
-.. [fn1] Kang, H. M., Subramaniam, M., Targ, S., Nguyen, M., Maliskova, L., McCarthy, E., Wan, E., Wong, S., Byrnes, L., Lanata, C. M., Gate, R. E., Mostafavi, S., Marson, A., Zaitlen, N., Criswell, L. A., & Ye, C. J. (2018). Multiplexed droplet single-cell RNA-sequencing using natural genetic variation. Nature biotechnology, 36(1), 89–94. https://doi.org/10.1038/nbt.4042
+.. [#fn1] Kang, H. M., Subramaniam, M., Targ, S., Nguyen, M., Maliskova, L., McCarthy, E., Wan, E., Wong, S., Byrnes, L., Lanata, C. M., Gate, R. E., Mostafavi, S., Marson, A., Zaitlen, N., Criswell, L. A., & Ye, C. J. (2018). Multiplexed droplet single-cell RNA-sequencing using natural genetic variation. Nature biotechnology, 36(1), 89–94. https://doi.org/10.1038/nbt.4042
 
-.. [fn2] Foroutan, M., Bhuva, D. D., Lyu, R., Horan, K., Cursons, J., & Davis, M. J. (2018). Single sample scoring of molecular phenotypes. BMC bioinformatics, 19(1), 404. https://doi.org/10.1186/s12859-018-2435-4
+.. [#fn2] Foroutan, M., Bhuva, D. D., Lyu, R., Horan, K., Cursons, J., & Davis, M. J. (2018). Single sample scoring of molecular phenotypes. BMC bioinformatics, 19(1), 404. https://doi.org/10.1186/s12859-018-2435-4
 
-.. [fn3] Klopfenstein, D. V., Zhang, L., Pedersen, B. S., Ramírez, F., Warwick Vesztrocy, A., Naldi, A., Mungall, C. J., Yunes, J. M., Botvinnik, O., Weigel, M., Dampier, W., Dessimoz, C., Flick, P., & Tang, H. (2018). GOATOOLS: A Python library for Gene Ontology analyses. Scientific reports, 8(1), 10872. https://doi.org/10.1038/s41598-018-28948-z
+.. [#fn3] Klopfenstein, D. V., Zhang, L., Pedersen, B. S., Ramírez, F., Warwick Vesztrocy, A., Naldi, A., Mungall, C. J., Yunes, J. M., Botvinnik, O., Weigel, M., Dampier, W., Dessimoz, C., Flick, P., & Tang, H. (2018). GOATOOLS: A Python library for Gene Ontology analyses. Scientific reports, 8(1), 10872. https://doi.org/10.1038/s41598-018-28948-z

@@ -45,4 +45,4 @@ To run the full workflows, please install `scanpy <https://scanpy-tutorials.read
 Walkthrough analysis
 --------------------
 
-An annotated example is provided here: `Monocyte dataset`_
+An annotated example is provided here: :ref:`_monocyte-example`
