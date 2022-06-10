@@ -6,7 +6,12 @@
 Usage
 =====
 
-The basic workflow for CDR-g is shown below. As input, CDR requires a pre-prepared anndata object. Genes can be filtered based on variance or count criteria to reduce computation time. The condition of interest should be a column in the anndata.obs dataframe. 
+overview
+--------
+
+In this section, we provide a high-level overview of the CDR-g workflow. 
+
+As input, CDR requires a pre-prepared anndata object. Genes can be filtered based on variance or count criteria to reduce computation time. The condition of interest should be a column in the anndata.obs dataframe. 
 
 CDR uses data from the count matrix (anndata.X) to construct co-expression matrices. Count data should be scaled and log-transformed. 
 
@@ -15,14 +20,14 @@ The two steps below will (1) run the CDR analysis to produce gene expression pro
 .. code-block::python
 
 	from pycdr.pycdr import run_CDR_analysis
-	fom pycdr.perm import calculate_enrichment
+	from pycdr.perm import calculate_enrichment
 
 	run_CDR_analysis(anndata_object, condition_of_interest)
 	calculate_enrichment(anndata_object)
 
 
-Example workflows
------------------
+Example (snakemake) workflows
+-----------------------------
 
 Three example snakemake workflows are provided in a separate `repository <https://github.com/wlchin/CDR_workflows>`_. These workflows generate the results and describe preprocessing steps for each dataset in the manuscript. These CDR-g analyses use the visualisation and preprocessing functions provided in other single cell packages. 
 
@@ -36,4 +41,8 @@ To run the full workflows, please install `scanpy <https://scanpy-tutorials.read
 
     The workflows download large datasets from GEO. 
     
-An annotated example is provided here. 
+
+Walkthrough analysis
+--------------------
+
+An annotated example is provided here: `example_analysis`_

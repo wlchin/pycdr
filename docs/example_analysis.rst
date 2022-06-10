@@ -1,4 +1,4 @@
-Example analysis
+Monocyte dataset 
 ================
 
 Introduction
