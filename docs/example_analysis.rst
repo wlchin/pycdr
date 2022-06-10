@@ -16,14 +16,14 @@ Here, we analyse a subset of the human peripheral blood dataset provided in Kang
 Data pre-processing
 ------------------
 
-After loading the dataset, we implement several pre-processing steps: filtering, a log-transform, and scaling prior to running CDR-g. 
+After loading the dataset, we implement several pre-processing steps: filtering, a log-transform, and scaling prior to running CDR-g. Below, the filtering step removes genes based on two criteria: count threshold and number of cells in which the gene is expressed. 
 
 .. code-block:: python
 
     import scanpy as sc
     from pycdr.utils import filter_genecounts_numcells, filter_genecounts_percent
 
-    mono = sc.read("raw_monocyte_CD1.h5ad")
+    mono = sc.read("raw_monocyte_CD14.h5ad")
     mono = filter_genecounts_percent(mono, 0.01, 1)
     mono = filter_genecounts_numcells(mono, 0, 100)
 
@@ -77,7 +77,7 @@ We run the ontology analysis with the code block below. We examine only enriched
 Comparing gene set activation between condition
 -----------------------------------------------
 
-The final stage of the analysis is to identify gene sets which are more activated between conditions of interest. We have implemented a `test of proportions <https://www.statsmodels.org/devel/generated/statsmodels.stats.proportion.proportions_chisquare.html>` that compares the number of cells with the "activated gene set" in each condition. We calculate gene set activation using ssGSEA [#fn3]_. Below, we test all factors and calculate whether a gene set is activated based on a permutation test, thresholded at a pvalue of =<0.05.
+The final stage of the analysis is to identify gene sets which are more activated between conditions of interest. We have implemented a `test of proportions <https://www.statsmodels.org/devel/generated/statsmodels.stats.proportion.proportions_chisquare.html>`_ that compares the number of cells with the "activated gene set" in each condition. We calculate gene set activation using ssGSEA [#fn3]_. Below, we test all factors and calculate whether a gene set is activated based on a permutation test, thresholded at a pvalue of =<0.05.
 
 .. code-block:: python
 
