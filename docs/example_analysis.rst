@@ -49,8 +49,7 @@ Running gene set enrichment
 ---------------------------
 
 .. note::
-
-    This analysis is optional. 
+    This analysis is optional. You are welcome to use other gene enrichment analysis strategies.
 
 The resulting gene expression programs extracted by CDR-g, which show variation between conditions, can be found in the unstructured annotation (anndata.uns) of the anndata object. These results are stored as a dictionary of lists, with each key corresponding to the variable genes found in each corresponding factor loading. 
 
@@ -78,7 +77,7 @@ We run the ontology analysis with the code block below. We examine only enriched
 Comparing gene set activation between condition
 -----------------------------------------------
 
-The final stage of the analysis is to identify gene sets which are more activated between conditions of interest. We have implemented a simple test of proportions that compares the number of cells with "activated gene set" in each condition, which we calculate gene set activation using ssGSEA [#fn3]_. Below, we provide all factors as a list and calculate whether a gene set is activated based on a permutation test, thresholded at 0.05.
+The final stage of the analysis is to identify gene sets which are more activated between conditions of interest. We have implemented a `test of proportions <https://www.statsmodels.org/devel/generated/statsmodels.stats.proportion.proportions_chisquare.html>` that compares the number of cells with "activated gene set" in each condition, which we calculate gene set activation using ssGSEA [#fn3]_. Below, we provide all factors as a list and calculate whether a gene set is activated based on a permutation test, thresholded at 0.05.
 
 .. code-block:: python
 

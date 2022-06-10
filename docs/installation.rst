@@ -12,10 +12,12 @@ CDR-g runs on python 3 and has been tested on python versions 3.5 through 3.9. I
 
 	pip install cdr-py
 
-For enrichment of gene sets, one can also install the enrichment_utils package:
+For enrichment of gene sets, one can also install the enrichment_utils package, a simple wrapper around the python `goatools <https://github.com/tanghaibao/goatools>`_ package.
 
 .. code-block::
 
     pip install enrichment_utils
 
-CDR-g does not require `scanpy <https://scanpy.readthedocs.io/>`_ as a dependency but integrates well with it. A `scanpy <https://scanpy.readthedocs.io/>`_ installation is therefore recommended for analysis.
+CDR-g does not require `scanpy <https://scanpy-tutorials.readthedocs.io/en/latest/>`_ as a dependency but integrates well with it. A `scanpy <https://scanpy-tutorials.readthedocs.io/en/latest/>`_ installation is therefore recommended for analysis.
+
+s
