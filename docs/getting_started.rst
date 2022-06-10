@@ -6,7 +6,7 @@
 Usage
 =====
 
-overview
+Overview
 --------
 
 In this section, we provide a high-level overview of the CDR-g workflow. 
@@ -17,7 +17,7 @@ CDR uses data from the count matrix (anndata.X) to construct co-expression matri
 
 The two steps below will (1) run the CDR analysis to produce gene expression programs and (2) perform single cell enrichment on each gene expression program recovered by CDR-g. The output of CDR-g is a dictionary of gene lists, with each list representing a gene expression program which varies between the conditions of interest.
 
-.. code-block::python
+.. code-block:: python
 
 	from pycdr.pycdr import run_CDR_analysis
 	from pycdr.perm import calculate_enrichment
@@ -45,4 +45,4 @@ To run the full workflows, please install `scanpy <https://scanpy-tutorials.read
 Walkthrough analysis
 --------------------
 
-An annotated example is provided here: `example_analysis`_
+An annotated example is provided here: `Monocyte dataset`_
