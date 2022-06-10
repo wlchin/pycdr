@@ -1,5 +1,3 @@
-automodule:: pycdr
-
 API
 ===
 
