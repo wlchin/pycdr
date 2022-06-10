@@ -10,8 +10,6 @@ Import pycdr in a python session via::
 Cell filtering
 --------------
 
-**Filtering anndata objects** 
-
 .. autosummary::
     :toctree: .
 

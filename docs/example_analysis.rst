@@ -6,17 +6,17 @@ Monocyte dataset
 Introduction
 ------------
 
-Here, we analyse the a subset of the human peripheral blood dataset provided in Kang et al [#fn1]_. This is a monocyte subset of a dataset of human peripheral blood cells, divided into an interferon-beta stimulated vs treatment naive population. We first download the dataset from the github repository:
+Here, we analyse a subset of the human peripheral blood dataset provided in Kang et al [#fn1]_. This is a CD14 monocyte dataset, divided into an interferon-beta stimulated vs. treatment naive population. We first download the dataset from the github repository:
 
 .. code-block:: shell
 
 	! wget https://github.com/wlchin/CDR_workflows/raw/main/monocytes/resources/raw_monocyte_CD14.h5ad
 
 
-Data preprocessing
+Data pre-processing
 ------------------
 
-After loading the dataset, we implement several preprocessing steps: filtering, log-transform, and scaling step prior to running CDR-g. 
+After loading the dataset, we implement several pre-processing steps: filtering, a log-transform, and scaling prior to running CDR-g. 
 
 .. code-block:: python
 
@@ -31,12 +31,12 @@ After loading the dataset, we implement several preprocessing steps: filtering, 
     sc.pp.scale(mono, zero_center = False)
 
 
-Running a CDR analysis
+Running a CDR-g analysis
 ----------------------
 
-This code-block runs the CDR analysis. The condition of interest should be provided as a column in the addndata.obs dataframe. In this case, we are interested in the "stim" column, which labels cells as either interferon-stimulated or treatment naive. 
+This code-block runs the CDR-g analysis. The condition of interest should be provided as a column in the anndata.obs dataframe. In this case, we are interested in the "stim" column, which labels cells as either interferon-stimulated or treatment naive. 
 
-Briefly, this CDR function wraps three critical steps: (1) The construction and concatenation of coexpression matrices for each condition (2) The singular value decomposition step and (3) the selection of important genes from each factor loading resulting from SVD using a permutation filter. 
+Briefly, this CDR-g function wraps three critical steps: (1) The construction and concatenation of coexpression matrices for each condition (2) The singular value decomposition (SVD) step and (3) the selection of important genes from each factor loading resulting from SVD using a permutation filter. 
 
 .. code-block:: python
 
@@ -53,7 +53,7 @@ Running gene set enrichment
 
 The resulting gene expression programs extracted by CDR-g, which show variation between conditions, can be found in the unstructured annotation (anndata.uns) of the anndata object. These results are stored as a dictionary of lists, with each key corresponding to the variable genes found in each corresponding factor loading. 
 
-To better understand these genes, We perform gene set enrichment on these gene sets. We use enrichment_utils, a simple wrapper around the goatools [#fn2]_ package. Enrichment using goatools requires an ontology (in this case the PANTHER GO-SLIM ontology) and the NCBIs gene2go mapping, so we download these accordingly. 
+To better understand these genes, We perform gene set enrichment on these gene sets. We provide enrichment_utils, a simple wrapper around the goatools [#fn2]_ package. Enrichment using goatools requires an ontology file (in this case the PANTHER GO-SLIM ontology) and the NCBI gene2go mapping, so we download these accordingly. 
 
 .. code-block:: shell
 
@@ -62,7 +62,7 @@ To better understand these genes, We perform gene set enrichment on these gene s
     ! tar -xzvf gene2go.gz
 
 
-We run the ontology analysis with the code block below. We examine only enriched terms from the GO-Biological Processes subset of the ontology in humans.  
+We run the ontology analysis with the code block below. We examine only enriched GO-terms from the biological processes subset of the ontology terms in humans.  
 
 .. code-block:: python
     
@@ -77,7 +77,7 @@ We run the ontology analysis with the code block below. We examine only enriched
 Comparing gene set activation between condition
 -----------------------------------------------
 
-The final stage of the analysis is to identify gene sets which are more activated between conditions of interest. We have implemented a `test of proportions <https://www.statsmodels.org/devel/generated/statsmodels.stats.proportion.proportions_chisquare.html>` that compares the number of cells with "activated gene set" in each condition, which we calculate gene set activation using ssGSEA [#fn3]_. Below, we provide all factors as a list and calculate whether a gene set is activated based on a permutation test, thresholded at 0.05.
+The final stage of the analysis is to identify gene sets which are more activated between conditions of interest. We have implemented a `test of proportions <https://www.statsmodels.org/devel/generated/statsmodels.stats.proportion.proportions_chisquare.html>` that compares the number of cells with the "activated gene set" in each condition. We calculate gene set activation using ssGSEA [#fn3]_. Below, we test all factors and calculate whether a gene set is activated based on a permutation test, thresholded at a pvalue of =<0.05.
 
 .. code-block:: python
 

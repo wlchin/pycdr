@@ -12,7 +12,7 @@ CDR-g runs on python 3 and has been tested on python versions 3.5 through 3.9. I
 
 	pip install cdr-py
 
-For enrichment of gene sets, one can also install the enrichment_utils package, a simple wrapper around the python `goatools <https://github.com/tanghaibao/goatools>`_ package.
+For enrichment of gene sets, we provide the enrichment_utils package, a simple wrapper around the python `goatools <https://github.com/tanghaibao/goatools>`_ package.
 
 .. code-block::
 
