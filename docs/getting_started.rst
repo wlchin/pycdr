@@ -11,11 +11,11 @@ Overview
 
 In this section, we provide a high-level overview of the CDR-g workflow. 
 
-As input, CDR requires a pre-prepared anndata object. Genes can be filtered based on variance or count criteria to reduce computation time. The condition of interest should be a column in the anndata.obs dataframe. 
+As input, CDR-g requires a pre-prepared anndata object. Genes can be filtered based on variance or count criteria to reduce computation time. The condition of interest should be a column in the anndata.obs dataframe. 
 
 CDR uses data from the count matrix (anndata.X) to construct co-expression matrices. Count data should be scaled and log-transformed. 
 
-The two steps below will (1) run the CDR analysis to produce gene expression programs and (2) perform single cell enrichment on each gene expression program recovered by CDR-g. The output of CDR-g is a dictionary of gene lists, with each list representing a gene expression program which varies between the conditions of interest.
+The two steps below will (1) run the CDR-g analysis to produce gene expression programs and (2) perform single cell enrichment on each gene expression program recovered by CDR-g. The output of CDR-g is a dictionary of gene lists, with each list representing a gene expression program which varies between the conditions of interest.
 
 .. code-block:: python
 
@@ -45,4 +45,4 @@ To run the full workflows, please install `scanpy <https://scanpy-tutorials.read
 Walkthrough analysis
 --------------------
 
-An annotated example is provided here: :ref:`_monocyte-example`
+An annotated example is provided here: :ref:`monocyte-example`

@@ -25,7 +25,7 @@ In complex single-cell RNA-sequencing experiments, a crucial analysis is to iden
 CDR-g overcomes these limitations, allowing sensitive, condition-dependent variation to be performed in an unsupervised manner within a single analysis. 
 
 .. toctree::
-   :maxdepth: 1
+   :maxdepth: 2
    :caption: Contents:
 
    installation.rst
@@ -34,7 +34,7 @@ CDR-g overcomes these limitations, allowing sensitive, condition-dependent varia
    api.rst
 
 .. toctree::
-   :maxdepth: 1
+   :maxdepth: 2
    :caption: Examples:
 
    example_analysis.rst
