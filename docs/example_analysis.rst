@@ -10,7 +10,7 @@ Here, we analyse a subset of the human peripheral blood dataset provided in Kang
 
 .. code-block:: shell
 
-	! wget https://github.com/wlchin/CDR_workflows/raw/main/monocytes/resources/raw_monocyte_CD14.h5ad
+	wget https://github.com/wlchin/CDR_workflows/raw/main/monocytes/resources/raw_monocyte_CD14.h5ad
 
 
 Data pre-processing
@@ -57,9 +57,9 @@ To better understand these genes, We perform gene set enrichment on these gene s
 
 .. code-block:: shell
 
-    ! wget http://data.pantherdb.org/PANTHER17.0/ontology/PANTHERGOslim.obo
-    ! wget https://ftp.ncbi.nlm.nih.gov/gene/DATA/gene2go.gz
-    ! tar -xzvf gene2go.gz
+    wget http://data.pantherdb.org/PANTHER17.0/ontology/PANTHERGOslim.obo
+    wget https://ftp.ncbi.nlm.nih.gov/gene/DATA/gene2go.gz
+    tar -xzvf gene2go.gz
 
 
 We run the ontology analysis with the code block below. We examine only enriched GO-terms from the biological processes subset of the ontology terms in humans.  
