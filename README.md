@@ -1,4 +1,4 @@
-[![wlchin](https://circleci.com/gh/wlchin/pycdr.svg?style=svg)]
+[![wlchin](https://circleci.com/gh/wlchin/pycdr.svg?style=svg)](https://circleci.com/gh/circleci/circleci-docs)
 
 
 # CDR-g (CDR-genomics)
