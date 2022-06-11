@@ -20,4 +20,7 @@ For enrichment of gene sets, we provide the enrichment_utils package, a simple w
 
 CDR-g does not require `scanpy <https://scanpy-tutorials.readthedocs.io/en/latest/>`_ as a dependency but integrates well with it. A `scanpy <https://scanpy-tutorials.readthedocs.io/en/latest/>`_ installation is therefore recommended for analysis.
 
-s
+Docker
+------
+
+`Here <https://hub.docker.com/repository/docker/wlc27/pycdr_jupyter>`_ is a link to a image with CDR-g, enrichment_utils, and scanpy. It has jupyterlab installed. It is built directly off the `gcfntnu/scanpy <https://hub.docker.com/r/gcfntnu/scanpy>`_ image. 
