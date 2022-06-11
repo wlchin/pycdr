@@ -74,7 +74,7 @@ We run the ontology analysis with the code block below. We examine only enriched
     analyse_adata(mono, INPUT_FILE_ONTOLOGY, INPUT_FILE_GENE2GO, "human", ontology_subset = "BP")
     
 
-Comparing gene set activation between condition
+Comparing gene set activation between conditions
 -----------------------------------------------
 
 The final stage of the analysis is to identify gene sets which are more activated between conditions of interest. We have implemented a `test of proportions <https://www.statsmodels.org/devel/generated/statsmodels.stats.proportion.proportions_chisquare.html>`_ that compares the number of cells with the "activated gene set" in each condition. We calculate gene set activation using ssGSEA [#fn3]_. Below, we test all factors and calculate whether a gene set is activated based on a permutation test, thresholded at a pvalue of =<0.05.
@@ -87,8 +87,6 @@ The final stage of the analysis is to identify gene sets which are more activate
     calculate_enrichment(mono, "stim", factor_list, 100, "features", 0.05)
 
 
-References
-----------
 
 .. [#fn1] Kang, H. M., Subramaniam, M., Targ, S., Nguyen, M., Maliskova, L., McCarthy, E., Wan, E., Wong, S., Byrnes, L., Lanata, C. M., Gate, R. E., Mostafavi, S., Marson, A., Zaitlen, N., Criswell, L. A., & Ye, C. J. (2018). Multiplexed droplet single-cell RNA-sequencing using natural genetic variation. Nature biotechnology, 36(1), 89–94. https://doi.org/10.1038/nbt.4042
 
