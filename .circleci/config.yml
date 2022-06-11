@@ -9,9 +9,7 @@ jobs:
       - checkout
       - run:
           name: install/update pip pipenv
-          command: |
-            sudo python -m pip install --upgrade pip setuptools wheel
-      
+          command: sudo python -m pip install --upgrade pip setuptools wheel
       - python/install-packages:
           pkg-manager: pip
       - run:
