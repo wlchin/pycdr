@@ -5,3 +5,4 @@ tqdm
 pandas
 numpy==1.20.0
 statsmodels
+pytest
