@@ -1,3 +1,6 @@
+[![wlchin](https://circleci.com/gh/wlchin/pycdr.svg?style=svg)]
+
+
 # CDR-g (CDR-genomics)
 
 This repository contains the codebase for the CDR-g (CDR-genomics) algorithm described in the manuscript **"Spectral detection of condition-specific biological pathways in single-cell gene expression data"**.
