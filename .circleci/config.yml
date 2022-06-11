@@ -5,11 +5,13 @@ orbs:
 
 jobs:
   build-and-test: 
-    docker:
-      - image: cimg/python:3.10.2
-   
     steps:
       - checkout
+      - run:
+          name: install/update pip pipenv
+          command: |
+            sudo python -m pip install --upgrade pip setuptools wheel
+      
       - python/install-packages:
           pkg-manager: pip
       - run:
