@@ -85,3 +85,37 @@ def get_top_genes(adata, i):
     hum.index = sigs
     hum.columns = ["z_score", "Fs_diff", "pval"]
     return hum.sort_values("z_score", ascending = False)
+
+
+def output_results(adata, fname = None):
+    """Extracts and save results after CDR-g run"
+    
+    This function extracts CDR-g results and writes to a tab-separated-value (tsv)
+    file. 
+    
+    Args:
+        adata (anndata): anndata object after CDR-g
+        fname (str): filename
+        
+    Returns:
+        df (dataframe): pandas dataframe of results
+    
+    """
+
+    dict_variable = {key:",".join(value.tolist()) for (key,value) in adata.uns["factor_loadings"].items()}
+    genes = pd.DataFrame.from_dict(dict_variable, orient='index', columns=['genes'])
+
+    if adata.uns["enrichment_results"] is not None:
+        dict_variable = {key:",".join(value.tolist()) for (key,value) in adata.uns["enrichment_results"].items()}
+        terms = pd.DataFrame.from_dict(dict_variable, orient='index', columns=['terms'])
+    else:
+        print("No enrichment results provided. Run enrichment_utils if required.")
+
+        
+    df = pd.concat([genes, terms], axis = 1)
+    
+    if fname is not None:
+        df.to_csv(fname, sep = "\t")
+    
+    return df
+
