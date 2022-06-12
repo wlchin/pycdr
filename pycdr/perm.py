@@ -118,8 +118,8 @@ def get_df_loadings(adata):
     return whole
     
 def tidy_up_dict(dict_obj):
-    oink = dict_obj
-    df = pd.DataFrame.from_dict(oink, orient = "index")
+    output = dict_obj
+    df = pd.DataFrame.from_dict(output, orient = "index")
     df.columns = ["statistic", "pvalue"]
     ps = df["pvalue"]
     df["factor_loading"] = df.index
