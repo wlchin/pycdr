@@ -1,7 +1,6 @@
 
 # get the data file as a fixture with scope module
 
-# there is no mock
 import pytest
 from pycdr import pycdr
 import anndata as ad
@@ -17,6 +16,19 @@ def muscleobject():
     adatapath = Path(__file__).parents[1] / "data/test_muscle.h5ad"
     x = ad.read(adatapath)
     return x
+    
+@pytest.fixture(scope='module')
+def muscleobjectoutput():
+    """
+    return the default data file that comes with the package
+    """
+    adatapath = Path(__file__).parents[1] / "data/test_fl_e_s.h5ad"
+    x = ad.read(adatapath)
+    return x    
+    
+def test_output_function(muscleobjectoutput):
+    x = utils.output_results(muscleobjectoutput)
+    assert x.shape == (1749, 9)
     
 def test_CDR_muscle_adata_shape(muscleobject, tmpdir):
     pycdr.run_CDR_analysis(muscleobject, "Hours")
