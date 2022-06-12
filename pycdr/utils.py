@@ -2,6 +2,7 @@ import numpy as np
 import scipy.sparse as ss
 import pandas as pd
 import anndata as ad
+from .perm import get_df_loadings
 
 
 def filter_genecounts_percent(adata, cell_fraction, median_count_above_zero):
@@ -87,11 +88,11 @@ def get_top_genes(adata, i):
     return hum.sort_values("z_score", ascending = False)
 
 
-def output_results(adata, fname = None):
+def output_results(adata):
     """Extracts and save results after CDR-g run"
     
-    This function extracts CDR-g results and writes to a tab-separated-value (tsv)
-    file. 
+        This function extracts CDR-g results and writes to a tab-separated-value (tsv)
+        file. 
     
     Args:
         adata (anndata): anndata object after CDR-g
@@ -101,21 +102,40 @@ def output_results(adata, fname = None):
         df (dataframe): pandas dataframe of results
     
     """
+    enrichment = False
+    stats = False
+    
+    try:
+        dict_variable = {key:",".join(value.tolist()) for (key,value) in adata.uns["factor_loadings"].items()}
+        genes = pd.DataFrame.from_dict(dict_variable, orient='index', columns=['genes'])
+    except:
+        print("No CDR-g analysis identified. Have you run the pipeline?")
+        return None
 
-    dict_variable = {key:",".join(value.tolist()) for (key,value) in adata.uns["factor_loadings"].items()}
-    genes = pd.DataFrame.from_dict(dict_variable, orient='index', columns=['genes'])
-
-    if adata.uns["enrichment_results"] is not None:
+    try:
         dict_variable = {key:",".join(value.tolist()) for (key,value) in adata.uns["enrichment_results"].items()}
         terms = pd.DataFrame.from_dict(dict_variable, orient='index', columns=['terms'])
-    else:
+        enrichment = True 
+    except:
         print("No enrichment results provided. Run enrichment_utils if required.")
 
+    try:
+        df_stats = get_df_loadings(adata).set_index("factor_loading")
+        stats = True
+    except:
+        print("No enrichment stats calculated. Run if required")
+
+    if not enrichment and stats:
+        df = pd.concat([genes, df_stats], join='inner', axis = 1)
         
-    df = pd.concat([genes, terms], axis = 1)
-    
-    if fname is not None:
-        df.to_csv(fname, sep = "\t")
+    if enrichment and not stats:
+        df = pd.concat([genes, terms], join='inner', axis = 1)
+        
+    if not enrichment and not stats:
+        df = genes
+        
+    if enrichment and stats:
+        df = pd.concat([genes, terms, df_stats], join='inner', axis = 1)
     
     return df
 
