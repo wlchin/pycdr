@@ -86,10 +86,36 @@ The final stage of the analysis is to identify gene sets which are more activate
     factor_list = [i for i in mono.uns["factor_loadings"].keys()]
     calculate_enrichment(mono, "stim", factor_list, 100, "features", 0.05)
 
+Viewing and saving results
+--------------------------
+
+The results from the analysis can be viewed as a dataframe and persisted to disk.
+
+.. code-block:: python
+
+    res = output_results(mono)
+
+Example output from the first row of the dataframe:
+
+.. code-block:: python
+
+    res.iloc[0,]
+
+
+    genes                     RSAD2,IFIT3,IFIT1,ISG20,APOBEC3A,MX1
+    terms        defense response to virus,type I interferon si...
+    max_P                                                     STIM
+    a_max                                                 0.098277
+    a_range                                               0.098277
+    a_mean                                                0.049138
+    statistic                                           228.747876
+    pvalue                                                     0.0
+    fdr                                                        0.0
+    Name: factor.0, dtype: object
 
 
 .. [#fn1] Kang, H. M., Subramaniam, M., Targ, S., Nguyen, M., Maliskova, L., McCarthy, E., Wan, E., Wong, S., Byrnes, L., Lanata, C. M., Gate, R. E., Mostafavi, S., Marson, A., Zaitlen, N., Criswell, L. A., & Ye, C. J. (2018). Multiplexed droplet single-cell RNA-sequencing using natural genetic variation. Nature biotechnology, 36(1), 89–94. https://doi.org/10.1038/nbt.4042
 
-.. [#fn2] Foroutan, M., Bhuva, D. D., Lyu, R., Horan, K., Cursons, J., & Davis, M. J. (2018). Single sample scoring of molecular phenotypes. BMC bioinformatics, 19(1), 404. https://doi.org/10.1186/s12859-018-2435-4
+.. [#fn3] Foroutan, M., Bhuva, D. D., Lyu, R., Horan, K., Cursons, J., & Davis, M. J. (2018). Single sample scoring of molecular phenotypes. BMC bioinformatics, 19(1), 404. https://doi.org/10.1186/s12859-018-2435-4
 
-.. [#fn3] Klopfenstein, D. V., Zhang, L., Pedersen, B. S., Ramírez, F., Warwick Vesztrocy, A., Naldi, A., Mungall, C. J., Yunes, J. M., Botvinnik, O., Weigel, M., Dampier, W., Dessimoz, C., Flick, P., & Tang, H. (2018). GOATOOLS: A Python library for Gene Ontology analyses. Scientific reports, 8(1), 10872. https://doi.org/10.1038/s41598-018-28948-z
+.. [#fn2] Klopfenstein, D. V., Zhang, L., Pedersen, B. S., Ramírez, F., Warwick Vesztrocy, A., Naldi, A., Mungall, C. J., Yunes, J. M., Botvinnik, O., Weigel, M., Dampier, W., Dessimoz, C., Flick, P., & Tang, H. (2018). GOATOOLS: A Python library for Gene Ontology analyses. Scientific reports, 8(1), 10872. https://doi.org/10.1038/s41598-018-28948-z

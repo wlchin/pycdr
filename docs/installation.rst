@@ -6,7 +6,7 @@
 Installation
 ============
 
-pyPI
+PyPI
 ----
 
 CDR-g runs on python 3 and has been tested on python versions 3.5 through 3.9. It is strongly recommended that the installation is performed in a virtual environment. CDR-g is available on pyPI via:

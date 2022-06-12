@@ -25,8 +25,8 @@ CDR algorithm
     pycdr.pycdr.run_CDR_analysis
     pycdr.perm.calculate_enrichment
 
-Results
--------
+Results and output
+------------------
 
 .. autosummary::
     :toctree: .
