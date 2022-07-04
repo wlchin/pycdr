@@ -89,14 +89,13 @@ def get_top_genes(adata, i):
 
 
 def output_results(adata):
-    """Extracts and save results after CDR-g run"
+    """Extracts and save results after CDR-g run
     
         This function extracts CDR-g results and writes to a tab-separated-value (tsv)
         file. 
     
     Args:
         adata (anndata): anndata object after CDR-g
-        fname (str): filename
         
     Returns:
         df (dataframe): pandas dataframe of results

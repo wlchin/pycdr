@@ -3,7 +3,7 @@
 from setuptools import setup
 
 setup(name='cdr_py',
-      version='0.0.2',
+      version='0.0.3',
       packages=['pycdr',
                 'pycdr.test'],
       install_requires = ['anndata==0.7.6', 'scipy', 'dask-ml', 'tqdm', 'pandas==1.3.5', 'numpy==1.20.0', 'statsmodels'],
