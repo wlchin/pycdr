@@ -36,7 +36,7 @@ def run_CDR_analysis(data, phenotype, capvar = 0.95, pernum = 2000, thres = 0.05
     logger.info('processing dataset of %s genes X %s cells', cell_num, gene_num)
     logger.info('target class label:: %s', phenotype)
     logger.info("SVD and threshold selection")
-    res = pvalgenerator(data, phenotype, capvar)
+    res = cdr_core(data, phenotype, capvar)
 
     logger.info("completed SVD and varimax")
     logger.info("permutation testing for gene sets:: perms:: %s threshold :: %s", pernum, thres)
@@ -117,7 +117,7 @@ def extract_matrix_from_anndata(ad, pheno_column):
 
 #### functions for generating pvals and integrating whole varimax
 
-def _full_Fs(ad, pheno, capvar):
+def cdr_core(ad, pheno, capvar):
     matlist, numpheno = extract_matrix_from_anndata(ad, pheno)
     Ee, Ss, _, N  = svd_and_concatenate(matlist, capvar) # specify algorithm
     Fs, Ls, Fk, Lk = process_svd_to_factors(Ee, Ss, N)
@@ -127,15 +127,7 @@ def _full_Fs(ad, pheno, capvar):
     ad.uns["Fk"] = Fk
     ad.uns["Lk"] = Lk
     ad.uns["n_pheno"] = numpheno
-    Fs_diff = calculate_minmax(Fs, numpheno)
-    return Fs_diff
-
-def pvalgenerator(ad, pheno, capvar):
-    Fs_diff = _full_Fs(ad, pheno, capvar)
-    ad.uns["Fs_diff"] = Fs_diff
-
-    return Fs_diff
-    
+    ad.uns["Fs_diff"] = calculate_minmax(Fs, numpheno)
         
 # leos' aux functions 
 
