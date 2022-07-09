@@ -177,7 +177,7 @@ def flip_Ek(Ek):
 # aux functions for detecting factors.
 
 
-def get_optimal_threshold(num, thres, ncomp = 2000):
+def get_optimal_threshold(num, thres, ncomp=2000):
     """selects number of factors for truncated SVD
 
     Args:
