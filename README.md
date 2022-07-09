@@ -1,4 +1,4 @@
-[![wlchin](https://circleci.com/gh/wlchin/pycdr.svg?style=svg)](https://circleci.com/gh/circleci/circleci-docs)
+[![wlchin](https://circleci.com/gh/wlchin/pycdr.svg?style=svg)](https://circleci.com/gh/circleci/circleci-docs) [![codecov](https://codecov.io/gh/wlchin/pycdr/branch/main/graph/badge.svg?token=4QIR3F7PSG)](https://codecov.io/gh/wlchin/pycdr)
 
 
 # CDR-g (CDR-genomics)
