@@ -12,6 +12,9 @@ jobs:
       - run:
           name: update pip pipenv
           command: pip install --upgrade pip setuptools wheel
+      - run:
+          name: install pytest cov
+          command: pip install pytest-cov
       - python/install-packages:
           pkg-manager: pip
       - run:
