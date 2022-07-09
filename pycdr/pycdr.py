@@ -4,6 +4,8 @@ import scipy.sparse as ss
 import logging
 import time
 import warnings
+import dask.array as da
+from dask_ml.decomposition import TruncatedSVD
 from .feature_selection import get_significant_genes
 from .feature_selection import calculate_minmax
 
@@ -13,19 +15,20 @@ logging.basicConfig(format='%(process)d - %(levelname)s : %(asctime)s - %(messag
 logger = logging.getLogger(__name__)
 
 
-def run_CDR_analysis(data, phenotype, capvar = 0.95, pernum = 2000, thres = 0.05):
+def run_CDR_analysis(data, phenotype, capvar=0.95, pernum=2000, thres=0.05):
     """Main CDR-g analysis function
 
-        The key step in CDR-g is an SVD-decomposition on gene co-expression matrices.
-        Depending on the sequencing platform, this SVD step can produce thousands of
-        factor loadings. By default, CDR-g selects number of factor loadings which 
+        The key step in CDR-g is an SVD-decomposition on gene 
+        co-expression matrices. Depending on the sequencing platform,
+        this SVD step can produce thousands of factor loadings. 
+        By default, CDR-g selects number of factor loadings which 
         captures 95% of variance in the dataset.
 
     Args:
         data (anndata): anndata object of interest
         phenotype (str): condition of interest
-        capvar (float, optional): specifies the number of factor loadings to examine. Defaults to 0.95.
-        pernum (int, optional): number of permutations to determine importance score. Defaults to 2000.
+        capvar (float, optional): factor loadings to examine. Defaults to 0.95.
+        pernum (int, optional): nperms to determine importance score. Defaults to 2000.
         thres (float, optional): cut-off for permutation importance to select genes. Defaults to 0.05.
     """
     start = time.time()
@@ -36,13 +39,12 @@ def run_CDR_analysis(data, phenotype, capvar = 0.95, pernum = 2000, thres = 0.05
     logger.info('processing dataset of %s genes X %s cells', cell_num, gene_num)
     logger.info('target class label:: %s', phenotype)
     logger.info("SVD and threshold selection")
-    res = cdr_core(data, phenotype, capvar)
+    cdr_core(data, phenotype, capvar)
 
     logger.info("completed SVD and varimax")
     logger.info("permutation testing for gene sets:: perms:: %s threshold :: %s", pernum, thres)
-    npheno= data.uns["n_pheno"]
-    #get_significant_genes_perms(data, npheno, permnum = pernum, thres = thres)
-    get_significant_genes(data, npheno, permnum = pernum, thres = thres)
+    npheno = data.uns["n_pheno"]
+    get_significant_genes(data, npheno, permnum=pernum, thres=thres)
     
     logger.info("computed thresholds for gene selection")
 
@@ -54,10 +56,15 @@ def run_CDR_analysis(data, phenotype, capvar = 0.95, pernum = 2000, thres = 0.05
 
     
 def svd_and_concatenate(matrixlist, capvar):
-    """provides svd and concatenation with dask"""
-    import dask.array as da
-    from dask_ml.decomposition import TruncatedSVD
+    """_summary_
 
+    Args:
+        matrixlist (_type_): _description_
+        capvar (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    """
     if ss.issparse(matrixlist[0]):
         list_of_mats_as_dask_arrays = [da.from_array(np.array(d.todense())) for d in matrixlist]
     else:
@@ -68,41 +75,38 @@ def svd_and_concatenate(matrixlist, capvar):
     X[da.isnan(X)] = 0.0
 
     _, y, Ek, Ss = get_optimal_threshold(X, capvar)
-  
-    #Ek = svd.components_
-    #Ss = svd.singular_values_
     return Ek, Ss, X, y 
+
 
 def process_svd_to_factors(Ek, Ss, N_k):
     """function for rotation and flips"""
     Ek = Ek.T
     ind = np.argsort(Ss)[::-1]
-    Ss  = Ss[ind]
-    Ek  = Ek[:, ind]
-    
-    Lk = Ss**2 # singular values to eigenvalues
-    Fk = (Lk[:N_k]**0.5)*Ek[:,:N_k] # factor loadings
-    
+    Ss = Ss[ind]
+    Ek = Ek[:, ind]
+    Lk = Ss**2  # singular values to eigenvalues
+    Fk = (Lk[:N_k]**0.5)*Ek[:, :N_k]  # factor loadings
     # Varimax rotation of the factor loadings
-    ROT = classic_orthomax(Fk, gamma=1) # finding rotation (gamma=1 implyes at CLASSIC varimax)
-    Fs  = np.dot(Fk,ROT) # rotated factor loadings
+    ROT = classic_orthomax(Fk, gamma=1)  # finding rotation (gamma=1 implyes at CLASSIC varimax)
+    Fs = np.dot(Fk, ROT)  # rotated factor loadings
     Ls = np.diag(ROT.T@np.diag(Lk[:N_k])@ROT)  # rotated eigenvalues
     
     ind = np.argsort(Ls)[::-1]
     Ls = Ls[ind]
-    Fs  = Fs[:, ind] 
+    Fs = Fs[:, ind] 
     
     Fs = flip_Ek(Fs)
     
     return Fs, Ls, Fk, Lk
 
 
-### aux functions for matrix extraction
+# aux functions for matrix extraction
 
 def get_numbers_of_pheno(ad, pheno):
     """return list of nums"""
     vals = ad.obs[pheno].value_counts().tolist()
     return vals
+
 
 def get_bools_of_pheno(ad, pheno):
     """return list of booleans"""
@@ -110,12 +114,14 @@ def get_bools_of_pheno(ad, pheno):
     bool_list = [ad.obs[pheno] == i for i in phenotypes]
     return bool_list
 
+
 def extract_matrix_from_anndata(ad, pheno_column):
     ind = get_bools_of_pheno(ad, pheno_column)
     rands = [ad[i,:].X.T for i in ind]
     return rands, len(rands)
 
-#### functions for generating pvals and integrating whole varimax
+# functions for generating pvals and integrating whole varimax
+
 
 def cdr_core(ad, pheno, capvar):
     matlist, numpheno = extract_matrix_from_anndata(ad, pheno)
@@ -129,15 +135,16 @@ def cdr_core(ad, pheno, capvar):
     ad.uns["n_pheno"] = numpheno
     ad.uns["Fs_diff"] = calculate_minmax(Fs, numpheno)
         
-# leos' aux functions 
+# leos' aux functions for performing varimax
 
-def classic_orthomax(Phi, gamma = 1, q = 20, tol = 1e-6):
+
+def classic_orthomax(Phi, gamma=1, q=20, tol=1e-6):
     """Returns the orthomax rotation"""
     from numpy import eye, asarray, dot, sum, diag
     from numpy.linalg import svd
-    p,k = Phi.shape
+    p, k = Phi.shape
     R = eye(k)
-    d=0
+    d = 0
     for i in range(q):
         d_old = d
         Lambda = dot(Phi, R)
@@ -148,32 +155,42 @@ def classic_orthomax(Phi, gamma = 1, q = 20, tol = 1e-6):
 
     return R
 
+
 def flip_Ek(Ek):
-    """That functions guaranties that the eigenvectors will "point up".
+    """Eigenvectors will "point up" function.
+
+    Args:
+        Ek (_type_): _description_
+
+    Returns:
+        _type_: _description_
     """
     n, m = Ek.shape
-    
     e_k_to_flip = abs(Ek.min(axis=0)) > Ek.max(axis=0)
-    
     flip = np.ones(m)
     flip[e_k_to_flip] *= -1
 
     Ek *= flip
-    
     return Ek
 
-### aux functions for detecting factors.
+
+# aux functions for detecting factors.
+
 
 def get_optimal_threshold(num, thres, ncomp = 2000):
-    """
-    selects number of factors for truncated SVD
-    
-    """
-    from dask_ml.decomposition import TruncatedSVD
-    import dask.array as da
-    nrows = num.shape[0] # this shows num cells and is required for svd
+    """selects number of factors for truncated SVD
 
-    numgenes = num.shape[1] # this is to make sure if less 2000
+    Args:
+        num (_type_): _description_
+        thres (_type_): _description_
+        ncomp (int, optional): _description_. Defaults to 2000.
+
+    Returns:
+        _type_: _description_
+    """
+    nrows = num.shape[0]  # this shows num cells and is required for svd
+
+    numgenes = num.shape[1]  # this is to make sure if less 2000
     if numgenes < ncomp:
         ncomp = numgenes - 1
     print(ncomp)
@@ -181,11 +198,11 @@ def get_optimal_threshold(num, thres, ncomp = 2000):
     svd = TruncatedSVD(n_components=ncomp, n_iter=5, random_state=42)
     svd.fit(numm)
     x = np.cumsum(svd.explained_variance_ratio_)
-    y = np.argmax(x>thres)
+    y = np.argmax(x > thres)
     if y == 0:
         y = ncomp
     X = svd.components_[0:y]
-    v = svd.singular_values_[0:y]    
+    v = svd.singular_values_[0:y]
     return x, y, X, v
 
 
