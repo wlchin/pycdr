@@ -53,7 +53,7 @@ def run_CDR_analysis(data, phenotype, capvar = 0.95, pernum = 2000, thres = 0.05
     logger.info('wall clock time in seconds:: %s', timediff)
 
     
-def dask_ver(matrixlist, capvar):
+def svd_and_concatenate(matrixlist, capvar):
     """provides svd and concatenation with dask"""
     import dask.array as da
     from dask_ml.decomposition import TruncatedSVD
@@ -119,7 +119,7 @@ def extract_matrix_from_anndata(ad, pheno_column):
 
 def _full_Fs(ad, pheno, capvar):
     matlist, numpheno = extract_matrix_from_anndata(ad, pheno)
-    Ee, Ss, _, N  = dask_ver(matlist, capvar) # specify algorithm
+    Ee, Ss, _, N  = svd_and_concatenate(matlist, capvar) # specify algorithm
     Fs, Ls, Fk, Lk = process_svd_to_factors(Ee, Ss, N)
     ad.uns["selected_loading"] = N
     ad.uns["Fs"] = Fs
