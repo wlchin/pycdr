@@ -1,7 +1,6 @@
 import numpy as np
 import scipy.sparse as ss
 import pandas as pd
-import anndata as ad
 from .perm import get_df_loadings
 
 
