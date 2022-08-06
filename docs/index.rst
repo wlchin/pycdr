@@ -36,6 +36,8 @@ CDR-g overcomes these limitations, allowing sensitive, condition-dependent varia
    :caption: Examples:
 
    example_analysis.rst
+   condensing_variation.rst
+   visualisation.rst
 
 Reference
 =========
