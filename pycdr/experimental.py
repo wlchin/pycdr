@@ -128,7 +128,7 @@ def calculate_enrichment(adata, pheno):
     return results
 
 
-def binarize_gset(arrrank, arr_index, geneset, nperm, threshold=0.1, seed=42):
+def binarize_gset(arrrank, arr_index, geneset, nperm = 50, threshold=0.1, seed=42):
     """calculate binary activation of gene set through permutation
 
     Calculates pvalues through comparing with permutation of matrices.
@@ -137,7 +137,7 @@ def binarize_gset(arrrank, arr_index, geneset, nperm, threshold=0.1, seed=42):
     Args:
         arrrank (_type_): _description_
         geneset (_type_): _description_
-        nperm (_type_): _description_
+        nperm (int, optional): Defaults to 50
         threshold (float, optional): _description_. Defaults to 01.
         seed (int, optional): _description_. Defaults to 42.
 
@@ -159,3 +159,21 @@ def binarize_gset(arrrank, arr_index, geneset, nperm, threshold=0.1, seed=42):
     active_cells = pmat < threshold
     
     return pmat, matreal, active_cells
+
+def binarize_gset_on_adata(adata, factor_list, **kwargs):
+    """driver function for adata object
+
+    Args:
+        adata (_type_): _description_
+        factor_list (_type_): _description_
+    """
+    arrrank = create_rank_matrix(adata.X)
+    arr_index = adata.var.index
+    agg = []
+    for i in factor_list:
+        _, _, active_cells = binarize_gset(arrrank, arr_index, kwargs)
+        agg.append(active_cells)
+
+    # merge all into array
+    # uns dict list, and store values in mobs so can visualise
+    # return array if required for processing
