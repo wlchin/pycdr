@@ -8,4 +8,4 @@ RUN mkdir /tmp/work
 
 WORKDIR /tmp/work
 
-CMD jupyter-lab --allow-root --port 9999 --no-browser 
+CMD jupyter-lab --allow-root --port 9999 --ip=0.0.0.0 --no-browser 
