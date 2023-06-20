@@ -8,4 +8,8 @@ RUN mkdir /tmp/work
 
 WORKDIR /tmp/work
 
-CMD jupyter-lab --allow-root --port 9999 --ip=0.0.0.0 --no-browser 
+RUN pip install --upgrade matplotlib
+
+RUN pip install pandas==1.5.0
+
+CMD jupyter-lab --allow-root --port=9999 --ip=0.0.0.0 --no-browser 
