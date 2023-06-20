@@ -15,15 +15,29 @@ CDR-g runs on python 3 and has been tested on python versions 3.5 through 3.9. I
 
 	pip install cdr-py
 
-For enrichment of gene sets, we provide the enrichment_utils package, a simple wrapper around the python `goatools <https://github.com/tanghaibao/goatools>`_ package.
+For enrichment of gene sets, we provide the enrichment_utils package, a simple wrapper around the python `goatools <https://github.com/tanghaibao/goatools>`_ package. Other gene enrichment strategies are provided in the workflows.
 
 .. code-block:: shell
 
     pip install enrichment_utils
 
-CDR-g does not require `scanpy <https://scanpy-tutorials.readthedocs.io/en/latest/>`_ as a dependency but integrates well with it. A `scanpy <https://scanpy-tutorials.readthedocs.io/en/latest/>`_ installation is therefore recommended for analysis.
-
 Docker
 ------
 
 `Here <https://hub.docker.com/repository/docker/wlc27/pycdr_jupyter>`_ is a link to a image with CDR-g, enrichment_utils, and scanpy. It has jupyterlab enviroment installed. It is built directly off the `gcfntnu/scanpy <https://hub.docker.com/r/gcfntnu/scanpy>`_ image. 
+
+Development version
+-------------------
+
+The newest version resides on github. To install, run:
+
+.. code-block:: shell
+
+    pip install git+https://github.com/wlchin/pycdr
+
+Optional dependencies
+---------------------
+
+CDR-g does not require `scanpy <https://scanpy-tutorials.readthedocs.io/en/latest/>`_ as a dependency but integrates well with it. A `scanpy <https://scanpy-tutorials.readthedocs.io/en/latest/>`_ installation is therefore recommended for analysis.
+
+To extend CDR-g's functionality, consider installing `decoupler <https://decoupler-py.readthedocs.io/en/latest/>`_, `scikit-learn <https://scikit-learn.org/stable/install.html>`_, and `gseapy <https://decoupler-py.readthedocs.io/en/latest/>`_. decoupler and scikit learn allow feature selection of factor loadings, whilst gseapy allows functional enrichment to be performed without downloading ontology files to disk.
