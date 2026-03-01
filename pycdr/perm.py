@@ -41,6 +41,10 @@ def permute_matrix(adata, arrrank, factor, nperm, genecol, seed = 42):
     n_cells = arrrank.shape[1]
     logger.debug("Factor '%s': %d genes in gene set, %d cells", factor, ind.sum(), n_cells)
 
+    if ind.sum() == 0:
+        logger.warning("Factor '%s': no gene overlap — returning neutral values", factor)
+        return np.ones(n_cells), np.zeros(n_cells)
+
     matreal = (arrrank[ind].mean(0)/genelength) - 0.5
 
     rng = np.random.default_rng(seed)

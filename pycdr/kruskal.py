@@ -21,9 +21,13 @@ def calculate_enrichment_single_geneset(geneset, arr_index, arrrank):
 
     Returns:
         numpy.ndarray: Enrichment score vector of length n_cells.
+            Returns NaN array if no genes overlap with the index.
     """
     genelength = arrrank.shape[0]
     ind = arr_index.isin(geneset)
+    if ind.sum() == 0:
+        logger.warning("Empty gene set overlap — returning NaN enrichment scores")
+        return np.full(arrrank.shape[1], np.nan)
     matreal = (arrrank[ind].mean(0)/genelength) - 0.5
 
     return matreal

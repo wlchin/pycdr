@@ -1,6 +1,7 @@
 import numpy as np
 import logging
 import tqdm
+from statsmodels.stats.multitest import fdrcorrection
 
 logger = logging.getLogger(__name__)
 
@@ -10,14 +11,14 @@ def calculate_zscore(base, av, var):
     return zscore
 
 
-def select_modules(adata, nperm, thresh, nfacs, quiet=False):
+def select_modules(adata, nperm, thresh, nfacs, seed=42, correction="fdr_bh", quiet=False):
 
     Fs = adata.uns["Fs"]
     Fs_diff = calculate_minmax(Fs, nfacs)
 
     n_rows = Fs.shape[0]
     rows_per_split = n_rows // nfacs
-    rng = np.random.default_rng(42)
+    rng = np.random.default_rng(seed)
     n_cols = Fs.shape[1]
 
     logger.info("Running %d permutations across %d genes x %d factors", nperm, rows_per_split, n_cols)
@@ -39,18 +40,32 @@ def select_modules(adata, nperm, thresh, nfacs, quiet=False):
     pval_mat = 1 - (pval_counts / nperm)
 
     z_score_mat = calculate_zscore(Fs_diff, av, var)
-    selection = pval_mat < thresh
+
+    # Store raw p-values
+    adata.uns["pval_mat_raw"] = pval_mat
+
+    # Apply multiple testing correction
+    if correction == "fdr_bh":
+        flat_pvals = pval_mat.ravel()
+        _, flat_corrected = fdrcorrection(flat_pvals)
+        corrected_pval_mat = flat_corrected.reshape(pval_mat.shape)
+        adata.uns["pval_mat"] = corrected_pval_mat
+        selection = corrected_pval_mat < thresh
+        logger.info("Applied FDR (Benjamini-Hochberg) correction")
+    else:
+        adata.uns["pval_mat"] = pval_mat
+        selection = pval_mat < thresh
 
     logger.debug("Permutation complete: %d/%d genes significant", selection.sum(), selection.size)
 
     adata.uns["zscores"] = z_score_mat
-    adata.uns["pval_mat"] = pval_mat
     adata.uns["Fs_diff"] = Fs_diff
     adata.uns["selection"] = selection
 
     return selection, pval_mat, z_score_mat
 
-def get_significant_genes(adata, nfacs, permnum=2000, thres=0.05, quiet=False):
+def get_significant_genes(adata, nfacs, permnum=2000, thres=0.05, seed=42,
+                          correction="fdr_bh", quiet=False):
     """Identify significant genes for each factor loading via permutation testing.
 
     Calls :func:`select_modules` to obtain a boolean selection matrix, then
@@ -61,9 +76,14 @@ def get_significant_genes(adata, nfacs, permnum=2000, thres=0.05, quiet=False):
         nfacs (int): Number of phenotype groups (used for min-max splitting).
         permnum (int, optional): Number of permutations. Defaults to 2000.
         thres (float, optional): P-value threshold. Defaults to 0.05.
+        seed (int, optional): Random seed for reproducibility. Defaults to 42.
+        correction (str, optional): Multiple testing correction method.
+            ``"fdr_bh"`` for Benjamini-Hochberg FDR, ``"none"`` for no
+            correction. Defaults to ``"fdr_bh"``.
         quiet (bool, optional): If True, suppress progress bars. Defaults to False.
     """
-    selection, pmat, zcore = select_modules(adata, permnum, thres, nfacs, quiet=quiet)
+    selection, pmat, zcore = select_modules(adata, permnum, thres, nfacs, seed=seed,
+                                            correction=correction, quiet=quiet)
 
     factor_loadings = {}
 
@@ -90,6 +110,10 @@ def calculate_minmax(Fs, splits):
     Returns:
         numpy.ndarray: Difference matrix of shape (rows_per_split, n_factors).
     """
+    if Fs.shape[0] % splits != 0:
+        raise ValueError(
+            f"Fs row count ({Fs.shape[0]}) is not evenly divisible by splits ({splits})"
+        )
     rows_per_split = Fs.shape[0] // splits
     reshaped = Fs.reshape(splits, rows_per_split, -1)
     return np.abs(reshaped.max(axis=0) - reshaped.min(axis=0))

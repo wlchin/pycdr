@@ -591,8 +591,12 @@ def _build_params_section(adata):
 
     rows.append(("Phenotype", _html.escape(str(params.get("phenotype", "n/a")))))
     rows.append(("Variance threshold (capvar)", str(params.get("capvar", "n/a"))))
-    rows.append(("Permutations (pernum)", str(params.get("pernum", "n/a"))))
+    rows.append(("Permutations (nperm)", str(params.get("nperm", params.get("pernum", "n/a")))))
     rows.append(("P-value threshold (thres)", str(params.get("thres", "n/a"))))
+    if "seed" in params:
+        rows.append(("Random seed", str(params["seed"])))
+    if "correction" in params:
+        rows.append(("Multiple testing correction", str(params["correction"])))
 
     # Subset — may be a list or numpy array after h5ad round-trip
     subset = params.get("subset", [])
@@ -616,7 +620,7 @@ def _build_params_section(adata):
     if em:
         rows.append(("Enrichment method", _html.escape(str(em))))
         if str(em) == "perm":
-            rows.append(("  nperm", str(params.get("nperm", ""))))
+            rows.append(("  nperm", str(params.get("enrich_nperm", params.get("nperm", "")))))
             rows.append(("  enrich_thresh", str(params.get("enrich_thresh", ""))))
             gc = params.get("genecol")
             if gc:

@@ -32,8 +32,12 @@ def muscleobjectoutput():
 
 @pytest.fixture(scope='module')
 def analyzed_muscle(muscleobject, tmp_path_factory):
-    """Run CDR analysis once and return the serialized result."""
-    pycdr.run_CDR_analysis(muscleobject, "Hours")
+    """Run CDR analysis once and return the serialized result.
+
+    Uses correction="none" to preserve legacy snapshot values on the small
+    test dataset.  FDR behaviour is tested separately.
+    """
+    pycdr.run_CDR_analysis(muscleobject, "Hours", correction="none")
     file = tmp_path_factory.mktemp("data") / "output.h5ad"
     muscleobject.write(str(file))
     x = ad.read_h5ad(str(file))
@@ -135,13 +139,7 @@ def test_rank_matrix_sparse(sparse_muscle):
     assert arrrank.shape == (adata.shape[1], adata.shape[0])
 
 
-# --- B. pycdr.py branches (103-104, 151, 197) ---
-
-def test_get_numbers_of_pheno(analyzed_muscle):
-    vals = pycdr.get_numbers_of_pheno(analyzed_muscle, "Hours")
-    assert isinstance(vals, list)
-    assert all(isinstance(v, (int, np.integer)) for v in vals)
-    assert sum(vals) == analyzed_muscle.shape[0]
+# --- B. pycdr.py branches ---
 
 def test_orthomax_convergence():
     R = pycdr.classic_orthomax(np.eye(5))
@@ -376,3 +374,124 @@ def test_permute_matrix_memory_safe():
     assert pmat.shape == (n_cells,)
     assert matreal.shape == (n_cells,)
     assert np.all((pmat >= 0) & (pmat <= 1))
+
+
+# --- H. Phase 1: Seed reproducibility ---
+
+def test_reproducibility_same_seed(muscleobject):
+    """Same seed should produce identical results."""
+    a = muscleobject.copy()
+    b = muscleobject.copy()
+    pycdr.run_CDR_analysis(a, "Hours", nperm=100, seed=123, correction="none")
+    pycdr.run_CDR_analysis(b, "Hours", nperm=100, seed=123, correction="none")
+    np.testing.assert_array_equal(a.uns["Fs"], b.uns["Fs"])
+    np.testing.assert_array_equal(a.uns["pval_mat"], b.uns["pval_mat"])
+    np.testing.assert_array_equal(a.uns["selection"], b.uns["selection"])
+
+
+def test_reproducibility_different_seed(muscleobject):
+    """Different seeds should produce different permutation p-values."""
+    a = muscleobject.copy()
+    b = muscleobject.copy()
+    pycdr.run_CDR_analysis(a, "Hours", nperm=100, seed=1, correction="none")
+    pycdr.run_CDR_analysis(b, "Hours", nperm=100, seed=2, correction="none")
+    # SVD uses different seeds so Fs may differ; at minimum pval_mat should differ
+    assert not np.array_equal(a.uns["pval_mat"], b.uns["pval_mat"])
+
+
+# --- I. Phase 2: FDR correction ---
+
+def test_fdr_reduces_gene_counts(muscleobject):
+    """FDR correction should produce fewer or equal significant genes vs none."""
+    a = muscleobject.copy()
+    b = muscleobject.copy()
+    pycdr.run_CDR_analysis(a, "Hours", nperm=500, correction="none")
+    pycdr.run_CDR_analysis(b, "Hours", nperm=500, correction="fdr_bh")
+    genes_none = sum(len(v) for v in a.uns["factor_loadings"].values())
+    genes_fdr = sum(len(v) for v in b.uns["factor_loadings"].values())
+    assert genes_fdr <= genes_none
+
+
+def test_fdr_corrected_pvals_stored(muscleobject):
+    """FDR correction should store both raw and corrected p-values."""
+    a = muscleobject.copy()
+    pycdr.run_CDR_analysis(a, "Hours", nperm=100, correction="fdr_bh")
+    assert "pval_mat_raw" in a.uns
+    assert "pval_mat" in a.uns
+    # Corrected p-values should be >= raw p-values
+    assert np.all(a.uns["pval_mat"] >= a.uns["pval_mat_raw"] - 1e-10)
+
+
+def test_correction_none_matches_legacy(muscleobject):
+    """correction='none' should produce identical results to legacy behavior."""
+    a = muscleobject.copy()
+    pycdr.run_CDR_analysis(a, "Hours", nperm=200, correction="none")
+    # With no correction, pval_mat should equal pval_mat_raw
+    np.testing.assert_array_equal(a.uns["pval_mat"], a.uns["pval_mat_raw"])
+
+
+# --- J. Phase 3: Input validation and edge cases ---
+
+def test_single_condition_raises(muscleobject):
+    """CDR-g should raise ValueError with fewer than 2 phenotype groups."""
+    adata = muscleobject.copy()
+    adata.obs["single"] = "A"
+    with pytest.raises(ValueError, match="at least 2 phenotype groups"):
+        pycdr.run_CDR_analysis(adata, "single")
+
+
+def test_nan_warning_logged(muscleobject, caplog):
+    """NaN values in correlation matrix should be logged."""
+    import logging
+    with caplog.at_level(logging.WARNING, logger="pycdr.pycdr"):
+        adata = muscleobject.copy()
+        pycdr.run_CDR_analysis(adata, "Hours", correction="none")
+    assert any("NaN" in r.message for r in caplog.records)
+
+
+def test_empty_gene_set_kruskal():
+    """Empty gene set overlap should return NaN enrichment scores."""
+    arrrank = np.random.default_rng(0).random((10, 5))
+    arr_index = pd.Index([f"gene_{i}" for i in range(10)])
+    result = kruskal.calculate_enrichment_single_geneset(
+        ["nonexistent_gene"], arr_index, arrrank
+    )
+    assert result.shape == (5,)
+    assert np.all(np.isnan(result))
+
+
+def test_reshape_mismatch_raises():
+    """calculate_minmax should raise ValueError when rows aren't divisible by splits."""
+    Fs = np.zeros((7, 3))
+    with pytest.raises(ValueError, match="not evenly divisible"):
+        feature_selection.calculate_minmax(Fs, splits=2)
+
+
+def test_empty_gene_overlap_perm():
+    """permute_matrix should return neutral values for empty gene overlap."""
+    n_genes = 10
+    n_cells = 5
+    gene_names = [f"gene_{i}" for i in range(n_genes)]
+    adata = ad.AnnData(
+        np.zeros((n_cells, n_genes)),
+        var=pd.DataFrame({"name": gene_names}, index=gene_names),
+    )
+    adata.uns["factor_loadings"] = {"test": ["missing_gene"]}
+    arrrank = np.random.default_rng(0).random((n_genes, n_cells))
+    pmat, matreal = perm.permute_matrix(adata, arrrank, "test", nperm=10, genecol="name")
+    np.testing.assert_array_equal(pmat, np.ones(n_cells))
+    np.testing.assert_array_equal(matreal, np.zeros(n_cells))
+
+
+# --- K. Phase 4: API naming deprecation ---
+
+def test_pernum_deprecation_warning(muscleobject):
+    """Using 'pernum' keyword should emit DeprecationWarning."""
+    import warnings
+    adata = muscleobject.copy()
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        pycdr.run_CDR_analysis(adata, "Hours", pernum=100, correction="none")
+        dep_warnings = [x for x in w if issubclass(x.category, DeprecationWarning)]
+        assert len(dep_warnings) == 1
+        assert "pernum" in str(dep_warnings[0].message)

@@ -224,17 +224,26 @@ def info(input, phenotype, subset, verbose, quiet):
 @click.option("-p", "--phenotype", required=True, help="Condition column in adata.obs.")
 @click.option("-o", "--output", default=None, help="Output .h5ad path.")
 @click.option("--capvar", default=0.95, show_default=True, help="Variance threshold.")
-@click.option("--pernum", default=2000, show_default=True, help="Permutations for importance scores.")
+@click.option("--nperm", default=2000, show_default=True, help="Permutations for importance scores.")
+@click.option("--pernum", default=None, type=int, hidden=True, help="Deprecated alias for --nperm.")
 @click.option("--thres", default=0.05, show_default=True, help="P-value threshold for gene selection.")
+@click.option("--seed", default=42, show_default=True, help="Random seed for reproducibility.")
+@click.option("--correction", default="fdr_bh", show_default=True,
+              type=click.Choice(["fdr_bh", "none"]), help="Multiple testing correction method.")
 @click.option("-s", "--subset", multiple=True,
               help="Subset cells: COLUMN=VALUE[,VALUE2]. Repeatable.")
 @click.option("-v", "--verbose", count=True, help="Increase verbosity (-v INFO, -vv DEBUG).")
 @click.option("-q", "--quiet", is_flag=True, help="Errors only.")
-def analyze(input, phenotype, output, capvar, pernum, thres, subset, verbose, quiet):
+def analyze(input, phenotype, output, capvar, nperm, pernum, thres, seed, correction, subset, verbose, quiet):
     """Run CDR-g SVD/varimax analysis."""
     _setup_logging(verbose, quiet)
     from .pycdr import run_CDR_analysis
     from .reporting import format_run_summary
+    import warnings
+
+    if pernum is not None:
+        warnings.warn("--pernum is deprecated; use --nperm instead.", DeprecationWarning, stacklevel=2)
+        nperm = pernum
 
     adata = _read_h5ad(input)
     adata = subset_cells(adata, subset)
@@ -242,13 +251,16 @@ def analyze(input, phenotype, output, capvar, pernum, thres, subset, verbose, qu
     _validate_phenotype_after_subset(adata, phenotype)
 
     logger.info("Running CDR-g analysis on %s", input)
-    run_CDR_analysis(adata, phenotype, capvar=capvar, pernum=pernum, thres=thres, quiet=quiet)
+    run_CDR_analysis(adata, phenotype, capvar=capvar, nperm=nperm, thres=thres,
+                     seed=seed, correction=correction, quiet=quiet)
 
     adata.uns["cdr_params"] = {
         "phenotype": phenotype,
         "capvar": capvar,
-        "pernum": pernum,
+        "nperm": nperm,
         "thres": thres,
+        "seed": seed,
+        "correction": correction,
         "subset": list(subset) if subset else [],
     }
 
@@ -496,7 +508,9 @@ def report(input, phenotype, output, verbose, quiet):
 @click.option("-o", "--output", default=None, help="Output .h5ad path.")
 @click.option("-c", "--csv", default=None, help="Export results CSV.")
 @click.option("--capvar", default=0.95, show_default=True, help="Variance threshold.")
-@click.option("--pernum", default=2000, show_default=True, help="Permutations for importance.")
+@click.option("--nperm-analysis", "nperm_analysis", default=2000, show_default=True,
+              help="Permutations for importance scores.")
+@click.option("--pernum", default=None, type=int, hidden=True, help="Deprecated alias for --nperm-analysis.")
 @click.option("--thres", default=0.05, show_default=True, help="P-value threshold.")
 @click.option("--filter-method", default="none", show_default=True,
               type=click.Choice(["none", "percent", "numcells"]), help="Gene filter method.")
@@ -512,22 +526,29 @@ def report(input, phenotype, output, verbose, quiet):
 @click.option("--nperm", default=100, show_default=True)
 @click.option("--enrich-thresh", default=0.05, show_default=True)
 @click.option("--seed", default=42, show_default=True, help="Random seed.")
+@click.option("--correction", default="fdr_bh", show_default=True,
+              type=click.Choice(["fdr_bh", "none"]), help="Multiple testing correction method.")
 @click.option("-s", "--subset", multiple=True,
               help="Subset cells: COLUMN=VALUE[,VALUE2]. Repeatable.")
 @click.option("--report", "report_path", default=None,
               help="Generate an HTML report at this path.")
 @click.option("-v", "--verbose", count=True)
 @click.option("-q", "--quiet", is_flag=True)
-def run(input, phenotype, output, csv, capvar, pernum, thres,
+def run(input, phenotype, output, csv, capvar, nperm_analysis, pernum, thres,
         filter_method, cell_fraction, median_count, count_threshold, min_cells,
-        enrich, enrich_method, genecol, nperm, enrich_thresh, seed, subset,
-        report_path, verbose, quiet):
+        enrich, enrich_method, genecol, nperm, enrich_thresh, seed, correction,
+        subset, report_path, verbose, quiet):
     """Full CDR-g pipeline: filter, analyze, enrich, export."""
     _setup_logging(verbose, quiet)
     from .pycdr import run_CDR_analysis
     from .utils import (filter_genecounts_percent, filter_genecounts_numcells,
                         output_results)
     from .reporting import format_run_summary
+    import warnings
+
+    if pernum is not None:
+        warnings.warn("--pernum is deprecated; use --nperm-analysis instead.", DeprecationWarning, stacklevel=2)
+        nperm_analysis = pernum
 
     adata = _read_h5ad(input)
     adata = subset_cells(adata, subset)
@@ -546,7 +567,8 @@ def run(input, phenotype, output, csv, capvar, pernum, thres,
 
     # --- analyze ---
     logger.info("Running CDR-g analysis")
-    run_CDR_analysis(adata, phenotype, capvar=capvar, pernum=pernum, thres=thres, quiet=quiet)
+    run_CDR_analysis(adata, phenotype, capvar=capvar, nperm=nperm_analysis, thres=thres,
+                     seed=seed, correction=correction, quiet=quiet)
     n_factors = len(adata.uns["factor_loadings"])
     _echo(f"CDR-g analysis complete: {n_factors} factors")
 
@@ -554,8 +576,10 @@ def run(input, phenotype, output, csv, capvar, pernum, thres,
     params = {
         "phenotype": phenotype,
         "capvar": capvar,
-        "pernum": pernum,
+        "nperm": nperm_analysis,
         "thres": thres,
+        "seed": seed,
+        "correction": correction,
         "filter_method": filter_method,
         "subset": list(subset) if subset else [],
     }
@@ -591,10 +615,9 @@ def run(input, phenotype, output, csv, capvar, pernum, thres,
 
         params["enrich_method"] = enrich_method
         if enrich_method == "perm":
-            params["nperm"] = nperm
+            params["enrich_nperm"] = nperm
             params["enrich_thresh"] = enrich_thresh
             params["genecol"] = genecol
-            params["seed"] = seed
 
     adata.uns["cdr_params"] = params
 
@@ -662,7 +685,7 @@ def demo(output_dir, verbose, quiet):
 
     # 4. CDR-g analysis
     click.echo("Running CDR-g analysis...")
-    run_CDR_analysis(adata, phenotype, pernum=500, quiet=True)
+    run_CDR_analysis(adata, phenotype, nperm=500, quiet=True)
     n_factors = len(adata.uns["factor_loadings"])
     click.echo(f"  {n_factors} factors identified")
 
@@ -675,8 +698,9 @@ def demo(output_dir, verbose, quiet):
     adata.uns["cdr_params"] = {
         "phenotype": phenotype,
         "capvar": 0.95,
-        "pernum": 500,
+        "nperm": 500,
         "thres": 0.05,
+        "seed": 42,
         "filter_method": "numcells",
         "count_threshold": 1,
         "min_cells": 10,
