@@ -1,1 +1,15 @@
-datasets: []
+# Benchmark grid parameters for pycdr scaling analysis
+n_genes: [500, 1000, 2000, 3000, 5000, 7000, 10000]
+n_cells: [200, 500, 1000, 2000, 5000, 10000]
+
+# CDR analysis parameters
+capvar: 0.95
+nperm: 500
+thres: 0.05
+
+# Synthetic data parameters
+n_phenotypes: 2
+seed: 42
+
+# Benchmarking parameters
+n_repeats: 3
