@@ -10,13 +10,13 @@ from .feature_selection import calculate_minmax
 logger = logging.getLogger(__name__)
 
 
-def run_CDR_analysis(data, phenotype, capvar=0.95, pernum=2000, thres=0.05):
+def run_CDR_analysis(data, phenotype, capvar=0.95, pernum=2000, thres=0.05, quiet=False):
     """Main CDR-g analysis function
 
-        The key step in CDR-g is an SVD-decomposition on gene 
+        The key step in CDR-g is an SVD-decomposition on gene
         co-expression matrices. Depending on the sequencing platform,
-        this SVD step can produce thousands of factor loadings. 
-        By default, CDR-g selects number of factor loadings which 
+        this SVD step can produce thousands of factor loadings.
+        By default, CDR-g selects number of factor loadings which
         captures 95% of variance in the dataset.
 
     Args:
@@ -25,6 +25,7 @@ def run_CDR_analysis(data, phenotype, capvar=0.95, pernum=2000, thres=0.05):
         capvar (float, optional): factor loadings to examine. Defaults to 0.95.
         pernum (int, optional): nperms to determine importance score. Defaults to 2000.
         thres (float, optional): cut-off for permutation importance to select genes. Defaults to 0.05.
+        quiet (bool, optional): If True, suppress progress bars. Defaults to False.
 
     Returns:
         None. Results are stored in-place on *data.uns*: ``Fs``, ``Ls``,
@@ -32,27 +33,32 @@ def run_CDR_analysis(data, phenotype, capvar=0.95, pernum=2000, thres=0.05):
         ``selection``, ``factor_loadings``, and ``selected_loading``.
     """
     start = time.time()
-    
+
     n_cells = data.X.shape[0]
     n_genes = data.X.shape[1]
 
-    logger.info('processing dataset of %s genes X %s cells', n_genes, n_cells)
-    logger.info('target class label:: %s', phenotype)
-    logger.info("SVD and threshold selection")
-    cdr_core(data, phenotype, capvar)
+    logger.info('Processing dataset of %s genes x %s cells', n_genes, n_cells)
+    logger.info('Phenotype column: %s', phenotype)
+    logger.info("Running SVD and threshold selection")
 
-    logger.info("completed SVD and varimax")
-    logger.info("permutation testing for gene sets:: perms:: %s threshold :: %s", pernum, thres)
+    t0 = time.time()
+    cdr_core(data, phenotype, capvar)
+    t1 = time.time()
+    logger.info("SVD and varimax rotation: %.1fs", t1 - t0)
+
+    logger.info("Permutation testing: %d permutations, threshold=%.3f", pernum, thres)
     npheno = data.uns["n_pheno"]
-    get_significant_genes(data, npheno, permnum=pernum, thres=thres)
-    
-    logger.info("computed thresholds for gene selection")
+
+    t2 = time.time()
+    get_significant_genes(data, npheno, permnum=pernum, thres=thres, quiet=quiet)
+    t3 = time.time()
+    logger.info("Permutation testing: %.1fs", t3 - t2)
 
     end = time.time()
     timediff = end - start
     numfact = data.uns["selected_loading"]
-    logger.info('N factor loadings:: %s', numfact)
-    logger.info('wall clock time in seconds:: %s', timediff)
+    logger.info('Selected %d factor loadings', numfact)
+    logger.info('Total time: %.1fs', timediff)
 
     
 def svd_and_concatenate(matrixlist, capvar):
@@ -70,9 +76,10 @@ def svd_and_concatenate(matrixlist, capvar):
     list_of_corr_mats = [np.corrcoef(d) for d in list_of_dense]
     X = np.concatenate(list_of_corr_mats, axis=1)
     X = np.nan_to_num(X, nan=0.0)
+    logger.debug("Correlation matrices computed, shape: %s", X.shape)
 
     _, y, Ek, Ss = get_optimal_threshold(X, capvar)
-    return Ek, Ss, X, y 
+    return Ek, Ss, X, y
 
 
 def process_svd_to_factors(Ek, Ss, N_k):
@@ -93,7 +100,8 @@ def process_svd_to_factors(Ek, Ss, N_k):
     Fs = Fs[:, ind] 
     
     Fs = flip_Ek(Fs)
-    
+    logger.debug("Factor matrix shape after varimax: %s", Fs.shape)
+
     return Fs, Ls, Fk, Lk
 
 
@@ -156,7 +164,9 @@ def compute_dominant_condition(Fs, n_conditions, condition_labels):
     # mean absolute loading per condition per factor -> (n_conditions, n_factors)
     mean_abs = np.abs(reshaped).mean(axis=1)
     dominant_idx = mean_abs.argmax(axis=0)
-    return [condition_labels[i] for i in dominant_idx]
+    result = [condition_labels[i] for i in dominant_idx]
+    logger.debug("Dominant conditions: %s", result)
+    return result
 
 
 def cdr_core(ad, pheno, capvar):
@@ -245,6 +255,7 @@ def get_optimal_threshold(num, thres, ncomp=2000):
     y = np.argmax(x > thres)
     if y == 0:
         y = ncomp
+    logger.debug("SVD selected %d components (cumvar=%.4f)", y, x[y-1] if y > 0 else 0)
     X = svd.components_[0:y]
     v = svd.singular_values_[0:y]
     return x, y, X, v

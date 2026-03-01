@@ -1,3 +1,5 @@
+import logging
+
 import numpy as np
 import pandas as pd
 from scipy import stats
@@ -5,6 +7,8 @@ from statsmodels.stats.multitest import fdrcorrection
 import tqdm
 
 from .utils import create_rank_matrix
+
+logger = logging.getLogger(__name__)
 
 
 def calculate_enrichment_single_geneset(geneset, arr_index, arrrank):
@@ -40,7 +44,7 @@ def calculate_enrichment_all_sets(dict_gene, arr_index, arrank, quiet=False):
 
     res_dict = {}
 
-    for i, geneset in tqdm.tqdm(dict_gene.items(), disable=quiet):
+    for i, geneset in tqdm.tqdm(dict_gene.items(), desc="Enrichment (kruskal)", disable=quiet):
         res = calculate_enrichment_single_geneset(geneset,  arr_index, arrank)
         res_dict[i] = res
 
@@ -89,6 +93,7 @@ def calculate_kruskal_wallis_all_sets(enrichment_df, pheno_ser):
         medians = enrichment_ser.groupby(pheno_ser).median()
         dominant = str(medians.idxmax()) if medians.notna().any() else ""
         results[i] = [stat, pval, dominant]
+        logger.debug("Gene set '%s': H=%.3f, p=%.4f", i, stat, pval)
 
     res = pd.DataFrame.from_dict(results, orient='index')
     res.columns = ["stat", "pval", "dominant_condition"]
@@ -131,6 +136,7 @@ def calculate_enrichment(adata, pheno, quiet=False):
     arr_index = adata.var.index
     pheno_ser = adata.obs[pheno]
 
+    logger.info("Computing Kruskal-Wallis tests for %d gene sets", len(dict_gene))
     arrank = create_rank_matrix(adata.X)
     enrichment_df = calculate_enrichment_all_sets(dict_gene, arr_index, arrank, quiet=quiet)
     results = calculate_kruskal_wallis_all_sets(enrichment_df, pheno_ser)

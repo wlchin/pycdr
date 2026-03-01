@@ -1,5 +1,6 @@
 import numpy as np
 import logging
+import tqdm
 
 logger = logging.getLogger(__name__)
 
@@ -9,7 +10,7 @@ def calculate_zscore(base, av, var):
     return zscore
 
 
-def select_modules(adata, nperm, thresh, nfacs):
+def select_modules(adata, nperm, thresh, nfacs, quiet=False):
 
     Fs = adata.uns["Fs"]
     Fs_diff = calculate_minmax(Fs, nfacs)
@@ -19,11 +20,13 @@ def select_modules(adata, nperm, thresh, nfacs):
     rng = np.random.default_rng(42)
     n_cols = Fs.shape[1]
 
+    logger.info("Running %d permutations across %d genes x %d factors", nperm, rows_per_split, n_cols)
+
     pval_counts = np.zeros((rows_per_split, n_cols))
     sum_diffs = np.zeros((rows_per_split, n_cols))
     sum_sq_diffs = np.zeros((rows_per_split, n_cols))
 
-    for _ in range(nperm):
+    for _ in tqdm.tqdm(range(nperm), desc="Permutation testing", disable=quiet):
         perm_idx = rng.permutation(n_rows)
         reshaped = Fs[perm_idx].reshape(nfacs, rows_per_split, -1)
         diff = np.abs(reshaped.max(axis=0) - reshaped.min(axis=0))
@@ -38,6 +41,8 @@ def select_modules(adata, nperm, thresh, nfacs):
     z_score_mat = calculate_zscore(Fs_diff, av, var)
     selection = pval_mat < thresh
 
+    logger.debug("Permutation complete: %d/%d genes significant", selection.sum(), selection.size)
+
     adata.uns["zscores"] = z_score_mat
     adata.uns["pval_mat"] = pval_mat
     adata.uns["Fs_diff"] = Fs_diff
@@ -45,7 +50,7 @@ def select_modules(adata, nperm, thresh, nfacs):
 
     return selection, pval_mat, z_score_mat
 
-def get_significant_genes(adata, nfacs, permnum = 2000, thres = 0.05):
+def get_significant_genes(adata, nfacs, permnum=2000, thres=0.05, quiet=False):
     """Identify significant genes for each factor loading via permutation testing.
 
     Calls :func:`select_modules` to obtain a boolean selection matrix, then
@@ -56,8 +61,9 @@ def get_significant_genes(adata, nfacs, permnum = 2000, thres = 0.05):
         nfacs (int): Number of phenotype groups (used for min-max splitting).
         permnum (int, optional): Number of permutations. Defaults to 2000.
         thres (float, optional): P-value threshold. Defaults to 0.05.
+        quiet (bool, optional): If True, suppress progress bars. Defaults to False.
     """
-    selection, pmat, zcore = select_modules(adata, permnum, thres, nfacs)
+    selection, pmat, zcore = select_modules(adata, permnum, thres, nfacs, quiet=quiet)
 
     factor_loadings = {}
 
@@ -67,6 +73,7 @@ def get_significant_genes(adata, nfacs, permnum = 2000, thres = 0.05):
         sigs = adata.var.index[selection[:,i]].to_list()
         nameoffl = "factor." + str(i)
         factor_loadings[nameoffl] = sigs
+        logger.debug("Factor '%s': %d genes", nameoffl, len(sigs))
 
     adata.uns["factor_loadings"] = factor_loadings
 

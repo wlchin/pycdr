@@ -2,11 +2,21 @@
 
 import logging
 import sys
+import warnings
 from pathlib import Path
 
 import click
 
 logger = logging.getLogger("pycdr")
+
+# Module-level quiet flag for _echo helper
+_quiet_mode = False
+
+
+def _echo(message, **kwargs):
+    """click.echo wrapper that respects quiet mode."""
+    if not _quiet_mode:
+        click.echo(message, **kwargs)
 
 
 # ---------------------------------------------------------------------------
@@ -95,7 +105,13 @@ def default_output(input_path, suffix="_cdr"):
 
 
 def _setup_logging(verbose, quiet):
-    """Configure the pycdr root logger based on -v/-q flags."""
+    """Configure the pycdr root logger based on -v/-q flags.
+
+    Returns:
+        bool: True if quiet mode is active (level >= ERROR).
+    """
+    global _quiet_mode
+
     if quiet:
         level = logging.ERROR
     elif verbose >= 2:
@@ -105,8 +121,13 @@ def _setup_logging(verbose, quiet):
     else:
         level = logging.WARNING
 
+    if level <= logging.DEBUG:
+        fmt = "%(asctime)s %(levelname)s: %(message)s"
+    else:
+        fmt = "%(levelname)s: %(message)s"
+
     handler = logging.StreamHandler()
-    handler.setFormatter(logging.Formatter("%(levelname)s: %(message)s"))
+    handler.setFormatter(logging.Formatter(fmt))
     root = logging.getLogger("pycdr")
     root.handlers.clear()
     root.addHandler(handler)
@@ -115,6 +136,15 @@ def _setup_logging(verbose, quiet):
     for name in ("pycdr.pycdr", "pycdr.perm", "pycdr.utils",
                  "pycdr.feature_selection", "pycdr.kruskal"):
         logging.getLogger(name).setLevel(level)
+
+    # Suppress noisy Python warnings at all levels except DEBUG
+    if level > logging.DEBUG:
+        warnings.filterwarnings("ignore", category=RuntimeWarning)
+        warnings.filterwarnings("ignore", category=UserWarning)
+        warnings.filterwarnings("ignore", category=FutureWarning)
+
+    _quiet_mode = (level >= logging.ERROR)
+    return _quiet_mode
 
 
 def _read_h5ad(path):
@@ -160,8 +190,11 @@ def cli():
 @click.option("-p", "--phenotype", default=None, help="Show value counts for this obs column.")
 @click.option("-s", "--subset", multiple=True,
               help="Subset cells: COLUMN=VALUE[,VALUE2]. Repeatable.")
-def info(input, phenotype, subset):
+@click.option("-v", "--verbose", count=True, help="Increase verbosity (-v INFO, -vv DEBUG).")
+@click.option("-q", "--quiet", is_flag=True, help="Errors only.")
+def info(input, phenotype, subset, verbose, quiet):
     """Display dataset metadata."""
+    _setup_logging(verbose, quiet)
     from .reporting import format_info_summary
 
     adata = _read_h5ad(input)
@@ -209,7 +242,7 @@ def analyze(input, phenotype, output, capvar, pernum, thres, subset, verbose, qu
     _validate_phenotype_after_subset(adata, phenotype)
 
     logger.info("Running CDR-g analysis on %s", input)
-    run_CDR_analysis(adata, phenotype, capvar=capvar, pernum=pernum, thres=thres)
+    run_CDR_analysis(adata, phenotype, capvar=capvar, pernum=pernum, thres=thres, quiet=quiet)
 
     adata.uns["cdr_params"] = {
         "phenotype": phenotype,
@@ -220,8 +253,8 @@ def analyze(input, phenotype, output, capvar, pernum, thres, subset, verbose, qu
     }
 
     n_factors = len(adata.uns["factor_loadings"])
-    click.echo(f"CDR-g analysis complete: {n_factors} factors")
-    click.echo(format_run_summary(adata, phenotype))
+    _echo(f"CDR-g analysis complete: {n_factors} factors")
+    _echo(format_run_summary(adata, phenotype))
 
     out = output or default_output(input)
     adata.write(out)
@@ -267,7 +300,7 @@ def filter_cmd(input, filter_method, cell_fraction, median_count,
                      count_threshold, min_cells)
         adata = filter_genecounts_numcells(adata, count_threshold, min_cells)
 
-    click.echo(f"After filtering: {adata.shape[0]} cells x {adata.shape[1]} genes")
+    _echo(f"After filtering: {adata.shape[0]} cells x {adata.shape[1]} genes")
 
     out = output or default_output(input, suffix="_filtered")
     adata.write(out)
@@ -322,12 +355,12 @@ def enrich(input, phenotype, enrich_method, genecol, nperm, enrich_thresh,
         validate_genecol(adata, genecol)
 
         logger.info("Running perm enrichment (%d factors, nperm=%d)", len(factor_list), nperm)
-        calculate_enrichment(adata, phenotype, factor_list, nperm, genecol, enrich_thresh, seed=seed)
+        calculate_enrichment(adata, phenotype, factor_list, nperm, genecol, enrich_thresh, seed=seed, quiet=quiet)
     else:
         from .kruskal import calculate_enrichment as calc_kruskal
 
         logger.info("Running Kruskal-Wallis enrichment (%d factors)", len(factor_list))
-        calc_kruskal(adata, phenotype)
+        calc_kruskal(adata, phenotype, quiet=quiet)
 
     out = output or default_output(input, suffix="_enriched")
     adata.write(out)
@@ -400,8 +433,11 @@ def results(input, output, fmt, top_genes, factor, verbose, quiet):
 @click.argument("input", type=click.Path(exists=True))
 @click.option("-o", "--output", default=None, help="Output image path (default: cdr_summary.png).")
 @click.option("--dpi", default=150, show_default=True, help="Figure DPI.")
-def plot(input, output, dpi):
+@click.option("-v", "--verbose", count=True, help="Increase verbosity (-v INFO, -vv DEBUG).")
+@click.option("-q", "--quiet", is_flag=True, help="Errors only.")
+def plot(input, output, dpi, verbose, quiet):
     """Generate a summary figure from CDR-g results."""
+    _setup_logging(verbose, quiet)
     try:
         from .plotting import plot_summary
     except ImportError:
@@ -425,8 +461,11 @@ def plot(input, output, dpi):
 @click.argument("input", type=click.Path(exists=True))
 @click.option("-p", "--phenotype", required=True, help="Condition column in adata.obs.")
 @click.option("-o", "--output", default=None, help="Output HTML path.")
-def report(input, phenotype, output):
+@click.option("-v", "--verbose", count=True, help="Increase verbosity (-v INFO, -vv DEBUG).")
+@click.option("-q", "--quiet", is_flag=True, help="Errors only.")
+def report(input, phenotype, output, verbose, quiet):
     """Generate an HTML report from CDR-g results."""
+    _setup_logging(verbose, quiet)
     from .reporting import generate_html_report
 
     adata = _read_h5ad(input)
@@ -490,17 +529,17 @@ def run(input, phenotype, output, csv, capvar, pernum, thres,
     if filter_method == "percent":
         logger.info("Filtering genes (percent method)")
         adata = filter_genecounts_percent(adata, cell_fraction, median_count)
-        click.echo(f"After filtering: {adata.shape[0]} cells x {adata.shape[1]} genes")
+        _echo(f"After filtering: {adata.shape[0]} cells x {adata.shape[1]} genes")
     elif filter_method == "numcells":
         logger.info("Filtering genes (numcells method)")
         adata = filter_genecounts_numcells(adata, count_threshold, min_cells)
-        click.echo(f"After filtering: {adata.shape[0]} cells x {adata.shape[1]} genes")
+        _echo(f"After filtering: {adata.shape[0]} cells x {adata.shape[1]} genes")
 
     # --- analyze ---
     logger.info("Running CDR-g analysis")
-    run_CDR_analysis(adata, phenotype, capvar=capvar, pernum=pernum, thres=thres)
+    run_CDR_analysis(adata, phenotype, capvar=capvar, pernum=pernum, thres=thres, quiet=quiet)
     n_factors = len(adata.uns["factor_loadings"])
-    click.echo(f"CDR-g analysis complete: {n_factors} factors")
+    _echo(f"CDR-g analysis complete: {n_factors} factors")
 
     # --- store run parameters ---
     params = {
@@ -532,14 +571,14 @@ def run(input, phenotype, output, csv, capvar, pernum, thres,
                 )
             validate_genecol(adata, genecol)
             logger.info("Running perm enrichment")
-            calculate_enrichment(adata, phenotype, factor_list, nperm, genecol, enrich_thresh, seed=seed)
+            calculate_enrichment(adata, phenotype, factor_list, nperm, genecol, enrich_thresh, seed=seed, quiet=quiet)
         else:
             from .kruskal import calculate_enrichment as calc_kruskal
 
             logger.info("Running Kruskal-Wallis enrichment")
-            calc_kruskal(adata, phenotype)
+            calc_kruskal(adata, phenotype, quiet=quiet)
 
-        click.echo("Enrichment complete")
+        _echo("Enrichment complete")
 
         params["enrich_method"] = enrich_method
         if enrich_method == "perm":
@@ -551,7 +590,7 @@ def run(input, phenotype, output, csv, capvar, pernum, thres,
     adata.uns["cdr_params"] = params
 
     # --- summary ---
-    click.echo(format_run_summary(adata, phenotype, enriched=enrich))
+    _echo(format_run_summary(adata, phenotype, enriched=enrich))
 
     # --- output ---
     out = output or default_output(input)
@@ -578,9 +617,11 @@ def run(input, phenotype, output, csv, capvar, pernum, thres,
 @cli.command()
 @click.option("-o", "--output-dir", default="./pycdr_demo",
               show_default=True, help="Directory for demo output files.")
-def demo(output_dir):
+@click.option("-v", "--verbose", count=True, help="Increase verbosity (-v INFO, -vv DEBUG).")
+@click.option("-q", "--quiet", is_flag=True, help="Errors only.")
+def demo(output_dir, verbose, quiet):
     """Run an end-to-end example on bundled test data."""
-    import warnings
+    _setup_logging(verbose, quiet)
 
     import anndata as ad
 
@@ -590,11 +631,6 @@ def demo(output_dir):
     from .reporting import generate_html_report, format_run_summary
 
     click.echo("pycdr demo: running end-to-end example...\n")
-
-    # Suppress noisy warnings from anndata/numpy that distract from the demo
-    warnings.filterwarnings("ignore", category=UserWarning)
-    warnings.filterwarnings("ignore", category=RuntimeWarning)
-    warnings.filterwarnings("ignore", category=FutureWarning)
 
     # 1. Create output directory
     outdir = Path(output_dir)
@@ -617,7 +653,7 @@ def demo(output_dir):
 
     # 4. CDR-g analysis
     click.echo("Running CDR-g analysis...")
-    run_CDR_analysis(adata, phenotype, pernum=500)
+    run_CDR_analysis(adata, phenotype, pernum=500, quiet=True)
     n_factors = len(adata.uns["factor_loadings"])
     click.echo(f"  {n_factors} factors identified")
 

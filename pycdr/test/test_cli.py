@@ -430,3 +430,58 @@ def test_filter_with_subset(runner, muscle_path, tmp_path_factory):
     assert result.exit_code == 0
     assert "Subset:" in result.output
     assert "After filtering" in result.output
+
+
+# ---------------------------------------------------------------------------
+# Logging and progress reporting
+# ---------------------------------------------------------------------------
+
+def test_quiet_suppresses_progress(runner, muscle_path, tmp_path_factory):
+    """With -q, progress messages are suppressed but 'Wrote' still appears."""
+    out = str(tmp_path_factory.mktemp("cli_quiet") / "out.h5ad")
+    result = runner.invoke(cli, [
+        "run", muscle_path, "-p", "Hours", "-o", out, "-q",
+    ])
+    assert result.exit_code == 0
+    assert "Wrote" in result.output
+    assert "CDR-g Analysis Summary" not in result.output
+    assert "CDR-g analysis complete" not in result.output
+
+
+def test_verbose_shows_timing(runner, muscle_path, tmp_path_factory):
+    """With -v, timing information appears in stderr (captured as output)."""
+    out = str(tmp_path_factory.mktemp("cli_verbose") / "out.h5ad")
+    result = runner.invoke(cli, [
+        "run", muscle_path, "-p", "Hours", "-o", out, "-v",
+    ])
+    assert result.exit_code == 0
+    # INFO messages should contain timing
+    assert "time" in result.output.lower() or "Total time" in result.output
+
+
+def test_debug_shows_timestamps(runner, muscle_path, tmp_path_factory):
+    """With -vv, timestamps appear in log output."""
+    out = str(tmp_path_factory.mktemp("cli_debug") / "out.h5ad")
+    result = runner.invoke(cli, [
+        "run", muscle_path, "-p", "Hours", "-o", out, "-vv",
+    ])
+    assert result.exit_code == 0
+    # DEBUG format includes timestamps with colons (HH:MM:SS pattern)
+    import re
+    assert re.search(r"\d{4}-\d{2}-\d{2}", result.output) is not None
+
+
+def test_info_with_verbose(runner, muscle_path):
+    """pycdr info -v should work."""
+    result = runner.invoke(cli, ["info", muscle_path, "-v"])
+    assert result.exit_code == 0
+    assert "cells" in result.output
+
+
+def test_plot_with_quiet(runner, analyzed_path, tmp_path_factory):
+    """pycdr plot -q should work."""
+    pytest.importorskip("matplotlib")
+    out = str(tmp_path_factory.mktemp("cli_plot_quiet") / "summary.png")
+    result = runner.invoke(cli, ["plot", analyzed_path, "-o", out, "-q"])
+    assert result.exit_code == 0
+    assert Path(out).exists()

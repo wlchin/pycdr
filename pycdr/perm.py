@@ -38,6 +38,8 @@ def permute_matrix(adata, arrrank, factor, nperm, genecol, seed = 42):
     ind = adata.var[genecol].isin(adata.uns["factor_loadings"][factor])
 
     genelength = arrrank.shape[0]
+    n_cells = arrrank.shape[1]
+    logger.debug("Factor '%s': %d genes in gene set, %d cells", factor, ind.sum(), n_cells)
 
     matreal = (arrrank[ind].mean(0)/genelength) - 0.5
 
@@ -75,12 +77,12 @@ def calculate_proportions(adata, cols, pmat, thresh = 0.05):
     pval_obj = proportions_chisquare(ct, nobs)
     return pval_obj, ct, nobs, nobs2, truthcol
 
-def calculate_enrichment(adata, cols, factor_list, nperm, genecol, thresh, seed = 42):
+def calculate_enrichment(adata, cols, factor_list, nperm, genecol, thresh, seed=42, quiet=False):
     """Peforms enrichment test on factor loadings
 
-        For each factor loadings, this function performs ssGSEA 
+        For each factor loadings, this function performs ssGSEA
         (single sample gsea) on each assesses statistical significance
-        using a test of proportions 
+        using a test of proportions
 
     Args:
         adata (AnnData): anndata object in question
@@ -90,6 +92,7 @@ def calculate_enrichment(adata, cols, factor_list, nperm, genecol, thresh, seed 
         genecol (str): name of column for genes
         thresh (float): threshold for "active" gene set
         seed (int, optional): for reproducibility. Defaults to 42.
+        quiet (bool, optional): If True, suppress progress bars. Defaults to False.
 
     Returns:
         tuple: (dict_res_prop, vals_p) — proportions dictionary and p-value
@@ -102,14 +105,12 @@ def calculate_enrichment(adata, cols, factor_list, nperm, genecol, thresh, seed 
     """
     dict_res = {}
     dict_res_prop = {}
-    
+
     Xarr = create_rank_matrix(adata)
-    
-    for i,j in tqdm.tqdm(enumerate(factor_list)):
-        if i % 100 == 0:
-            logger.info("num factors processed:: %s", i)
-        pmat, matreal = permute_matrix(adata, Xarr, j, nperm, genecol, seed = seed)
-        pval_obj, ct, nobs, df, truthcol = calculate_proportions(adata, cols, pmat, thresh = thresh)
+
+    for i, j in tqdm.tqdm(enumerate(factor_list), desc="Enrichment (perm)", total=len(factor_list), disable=quiet):
+        pmat, matreal = permute_matrix(adata, Xarr, j, nperm, genecol, seed=seed)
+        pval_obj, ct, nobs, df, truthcol = calculate_proportions(adata, cols, pmat, thresh=thresh)
         i_ = str(j)
         ii_ = str(j) + "_score"
         dict_res[i_] = pval_obj
@@ -117,12 +118,15 @@ def calculate_enrichment(adata, cols, factor_list, nperm, genecol, thresh, seed 
         adata.obs[i_] = truthcol
         adata.obs[ii_] = matreal
         adata.obs[i_] = adata.obs[i_].astype(int).astype("category")
+        logger.debug("Factor '%s': chi2=%.3f, pval=%.4f", i_, pval_obj[0], pval_obj[1])
     
     
     adata.uns["dict_res_prop"] = dict_res_prop
     vals_p = {i:list(j[0:2]) for (i,j) in dict_res.items()} # this has problems
     adata.uns["pval_dict"] = vals_p
     adata.uns["enrichment_stats"] = get_df_loadings(adata).set_index("factor_loading")
+
+    logger.info("Processed %d factors", len(factor_list))
 
     return dict_res_prop, vals_p
 
