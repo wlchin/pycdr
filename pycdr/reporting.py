@@ -372,6 +372,8 @@ _HTML_TEMPLATE = """\
   <strong>Factors:</strong> {n_factors} ({factors_with_genes} with genes)
 </p>
 
+{params_section}
+
 <h2>How to read this report</h2>
 <div class="guide">
 <p>
@@ -515,6 +517,9 @@ def generate_html_report(adata, output_path, phenotype):
     # Figure section
     figure_section = _try_embed_figure(adata)
 
+    # Run parameters section
+    params_section = _build_params_section(adata)
+
     html = _HTML_TEMPLATE.format(
         n_cells=n_cells,
         n_genes=n_genes,
@@ -523,6 +528,7 @@ def generate_html_report(adata, output_path, phenotype):
         group_detail=_html.escape(group_detail),
         n_factors=n_factors,
         factors_with_genes=factors_with_genes,
+        params_section=params_section,
         factor_table_html=factor_table_html,
         enrichment_guide=enrichment_guide,
         enrichment_section=enrichment_section,
@@ -530,6 +536,58 @@ def generate_html_report(adata, output_path, phenotype):
     )
 
     Path(output_path).write_text(html, encoding="utf-8")
+
+
+def _build_params_section(adata):
+    """Build an HTML fragment showing the run parameters from ``adata.uns["cdr_params"]``."""
+    params = adata.uns.get("cdr_params")
+    if params is None:
+        return ""
+
+    # Analysis parameters
+    rows = []
+    _add = lambda label, key, fmt=str: rows.append(
+        (label, fmt(params[key])) if key in params else None
+    )
+
+    rows.append(("Phenotype", _html.escape(str(params.get("phenotype", "n/a")))))
+    rows.append(("Variance threshold (capvar)", str(params.get("capvar", "n/a"))))
+    rows.append(("Permutations (pernum)", str(params.get("pernum", "n/a"))))
+    rows.append(("P-value threshold (thres)", str(params.get("thres", "n/a"))))
+
+    # Subset
+    subset = params.get("subset", [])
+    if subset:
+        rows.append(("Cell subset", _html.escape(", ".join(subset))))
+
+    # Filter parameters
+    fm = params.get("filter_method", "none")
+    if fm and fm != "none":
+        rows.append(("Filter method", _html.escape(fm)))
+        if fm == "percent":
+            rows.append(("  cell_fraction", str(params.get("cell_fraction", ""))))
+            rows.append(("  median_count", str(params.get("median_count", ""))))
+        elif fm == "numcells":
+            rows.append(("  count_threshold", str(params.get("count_threshold", ""))))
+            rows.append(("  min_cells", str(params.get("min_cells", ""))))
+
+    # Enrichment parameters
+    em = params.get("enrich_method")
+    if em:
+        rows.append(("Enrichment method", _html.escape(em)))
+        if em == "perm":
+            rows.append(("  nperm", str(params.get("nperm", ""))))
+            rows.append(("  enrich_thresh", str(params.get("enrich_thresh", ""))))
+            gc = params.get("genecol")
+            if gc:
+                rows.append(("  genecol", _html.escape(gc)))
+            rows.append(("  seed", str(params.get("seed", ""))))
+
+    lines = ['<h2>Run Parameters</h2>', "<table>"]
+    for label, value in rows:
+        lines.append(f"<tr><td><strong>{label}</strong></td><td>{value}</td></tr>")
+    lines.append("</table>")
+    return "\n".join(lines)
 
 
 def _df_to_html_table(df):

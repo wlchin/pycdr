@@ -29,8 +29,8 @@ Enrichment analysis
 .. autosummary::
     :toctree: .
 
-    pycdr.experimental.calculate_enrichment
-    pycdr.experimental.binarize_gset_on_adata
+    pycdr.kruskal.calculate_enrichment
+    pycdr.kruskal.binarize_gset_on_adata
 
 Results and output
 ------------------

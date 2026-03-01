@@ -98,7 +98,7 @@ def calculate_enrichment(adata, cols, factor_list, nperm, genecol, thresh, seed 
     .. note::
         This is the legacy permutation-based enrichment function. For a
         simpler Kruskal-Wallis approach, use
-        :func:`pycdr.experimental.calculate_enrichment`.
+        :func:`pycdr.kruskal.calculate_enrichment`.
     """
     dict_res = {}
     dict_res_prop = {}

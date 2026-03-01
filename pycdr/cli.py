@@ -41,6 +41,53 @@ def validate_genecol(adata, col):
         )
 
 
+def subset_cells(adata, subset_specs):
+    """Subset *adata* by one or more ``column=value[,value2]`` specs.
+
+    Multiple specs are combined with AND logic.  Within a single spec,
+    comma-separated values are combined with OR logic.
+    """
+    if not subset_specs:
+        return adata
+
+    for spec in subset_specs:
+        if "=" not in spec:
+            raise click.BadParameter(
+                f"Invalid subset format '{spec}'. Expected COLUMN=VALUE[,VALUE2,...]",
+                param_hint="'--subset'",
+            )
+        col, raw_values = spec.split("=", 1)
+        if col not in adata.obs.columns:
+            available = ", ".join(adata.obs.columns.tolist())
+            raise click.BadParameter(
+                f"Column '{col}' not found in adata.obs. Available: {available}",
+                param_hint="'--subset'",
+            )
+        values = [v.strip() for v in raw_values.split(",")]
+        mask = adata.obs[col].astype(str).isin(values)
+        if not mask.any():
+            raise click.ClickException(
+                f"No cells match --subset '{spec}'. "
+                f"Unique values in '{col}': {adata.obs[col].unique().tolist()}"
+            )
+        adata = adata[mask].copy()
+
+    logger.info("After subsetting: %d cells x %d genes", adata.shape[0], adata.shape[1])
+    click.echo(f"Subset: {adata.shape[0]} cells x {adata.shape[1]} genes")
+    return adata
+
+
+def _validate_phenotype_after_subset(adata, phenotype):
+    """Warn if any phenotype group has 0 cells after subsetting."""
+    counts = adata.obs[phenotype].value_counts()
+    empty = counts[counts == 0]
+    if len(empty) > 0:
+        raise click.ClickException(
+            f"After subsetting, phenotype group(s) {empty.index.tolist()} "
+            f"have 0 cells. CDR-g requires cells in every condition."
+        )
+
+
 def default_output(input_path, suffix="_cdr"):
     """Generate an output path from the input stem."""
     p = Path(input_path)
@@ -111,11 +158,14 @@ def cli():
 @cli.command()
 @click.argument("input", type=click.Path(exists=True))
 @click.option("-p", "--phenotype", default=None, help="Show value counts for this obs column.")
-def info(input, phenotype):
+@click.option("-s", "--subset", multiple=True,
+              help="Subset cells: COLUMN=VALUE[,VALUE2]. Repeatable.")
+def info(input, phenotype, subset):
     """Display dataset metadata."""
     from .reporting import format_info_summary
 
     adata = _read_h5ad(input)
+    adata = subset_cells(adata, subset)
 
     click.echo(f"Shape: {adata.shape[0]} cells x {adata.shape[1]} genes")
 
@@ -143,19 +193,31 @@ def info(input, phenotype):
 @click.option("--capvar", default=0.95, show_default=True, help="Variance threshold.")
 @click.option("--pernum", default=2000, show_default=True, help="Permutations for importance scores.")
 @click.option("--thres", default=0.05, show_default=True, help="P-value threshold for gene selection.")
+@click.option("-s", "--subset", multiple=True,
+              help="Subset cells: COLUMN=VALUE[,VALUE2]. Repeatable.")
 @click.option("-v", "--verbose", count=True, help="Increase verbosity (-v INFO, -vv DEBUG).")
 @click.option("-q", "--quiet", is_flag=True, help="Errors only.")
-def analyze(input, phenotype, output, capvar, pernum, thres, verbose, quiet):
+def analyze(input, phenotype, output, capvar, pernum, thres, subset, verbose, quiet):
     """Run CDR-g SVD/varimax analysis."""
     _setup_logging(verbose, quiet)
     from .pycdr import run_CDR_analysis
     from .reporting import format_run_summary
 
     adata = _read_h5ad(input)
+    adata = subset_cells(adata, subset)
     validate_phenotype(adata, phenotype)
+    _validate_phenotype_after_subset(adata, phenotype)
 
     logger.info("Running CDR-g analysis on %s", input)
     run_CDR_analysis(adata, phenotype, capvar=capvar, pernum=pernum, thres=thres)
+
+    adata.uns["cdr_params"] = {
+        "phenotype": phenotype,
+        "capvar": capvar,
+        "pernum": pernum,
+        "thres": thres,
+        "subset": list(subset) if subset else [],
+    }
 
     n_factors = len(adata.uns["factor_loadings"])
     click.echo(f"CDR-g analysis complete: {n_factors} factors")
@@ -182,16 +244,19 @@ def analyze(input, phenotype, output, capvar, pernum, thres, verbose, quiet):
               help="(numcells) Count cutoff.")
 @click.option("--min-cells", default=10, show_default=True,
               help="(numcells) Min expressed cells.")
+@click.option("-s", "--subset", multiple=True,
+              help="Subset cells: COLUMN=VALUE[,VALUE2]. Repeatable.")
 @click.option("-o", "--output", default=None, help="Output .h5ad path.")
 @click.option("-v", "--verbose", count=True)
 @click.option("-q", "--quiet", is_flag=True)
 def filter_cmd(input, filter_method, cell_fraction, median_count,
-               count_threshold, min_cells, output, verbose, quiet):
+               count_threshold, min_cells, subset, output, verbose, quiet):
     """Filter genes from an .h5ad file."""
     _setup_logging(verbose, quiet)
     from .utils import filter_genecounts_percent, filter_genecounts_numcells
 
     adata = _read_h5ad(input)
+    adata = subset_cells(adata, subset)
 
     if filter_method == "percent":
         logger.info("Filtering with percent method (fraction=%.3f, median_count=%.1f)",
@@ -226,16 +291,19 @@ def filter_cmd(input, filter_method, cell_fraction, median_count,
 @click.option("--seed", default=42, show_default=True, help="Random seed.")
 @click.option("--factors", default=None,
               help="Comma-separated factor names to test (default: all).")
+@click.option("-s", "--subset", multiple=True,
+              help="Subset cells: COLUMN=VALUE[,VALUE2]. Repeatable.")
 @click.option("-o", "--output", default=None, help="Output .h5ad path.")
 @click.option("-c", "--csv", default=None, help="Export results CSV.")
 @click.option("-v", "--verbose", count=True)
 @click.option("-q", "--quiet", is_flag=True)
 def enrich(input, phenotype, enrich_method, genecol, nperm, enrich_thresh,
-           seed, factors, output, csv, verbose, quiet):
+           seed, factors, subset, output, csv, verbose, quiet):
     """Run enrichment on previously analyzed data."""
     _setup_logging(verbose, quiet)
 
     adata = _read_h5ad(input)
+    adata = subset_cells(adata, subset)
     validate_phenotype(adata, phenotype)
     validate_analyzed(adata)
 
@@ -396,11 +464,16 @@ def report(input, phenotype, output):
 @click.option("--nperm", default=100, show_default=True)
 @click.option("--enrich-thresh", default=0.05, show_default=True)
 @click.option("--seed", default=42, show_default=True, help="Random seed.")
+@click.option("-s", "--subset", multiple=True,
+              help="Subset cells: COLUMN=VALUE[,VALUE2]. Repeatable.")
+@click.option("--report", "report_path", default=None,
+              help="Generate an HTML report at this path.")
 @click.option("-v", "--verbose", count=True)
 @click.option("-q", "--quiet", is_flag=True)
 def run(input, phenotype, output, csv, capvar, pernum, thres,
         filter_method, cell_fraction, median_count, count_threshold, min_cells,
-        enrich, enrich_method, genecol, nperm, enrich_thresh, seed, verbose, quiet):
+        enrich, enrich_method, genecol, nperm, enrich_thresh, seed, subset,
+        report_path, verbose, quiet):
     """Full CDR-g pipeline: filter, analyze, enrich, export."""
     _setup_logging(verbose, quiet)
     from .pycdr import run_CDR_analysis
@@ -409,7 +482,9 @@ def run(input, phenotype, output, csv, capvar, pernum, thres,
     from .reporting import format_run_summary
 
     adata = _read_h5ad(input)
+    adata = subset_cells(adata, subset)
     validate_phenotype(adata, phenotype)
+    _validate_phenotype_after_subset(adata, phenotype)
 
     # --- filter ---
     if filter_method == "percent":
@@ -426,6 +501,22 @@ def run(input, phenotype, output, csv, capvar, pernum, thres,
     run_CDR_analysis(adata, phenotype, capvar=capvar, pernum=pernum, thres=thres)
     n_factors = len(adata.uns["factor_loadings"])
     click.echo(f"CDR-g analysis complete: {n_factors} factors")
+
+    # --- store run parameters ---
+    params = {
+        "phenotype": phenotype,
+        "capvar": capvar,
+        "pernum": pernum,
+        "thres": thres,
+        "filter_method": filter_method,
+        "subset": list(subset) if subset else [],
+    }
+    if filter_method == "percent":
+        params["cell_fraction"] = cell_fraction
+        params["median_count"] = median_count
+    elif filter_method == "numcells":
+        params["count_threshold"] = count_threshold
+        params["min_cells"] = min_cells
 
     # --- enrich ---
     if enrich:
@@ -450,6 +541,15 @@ def run(input, phenotype, output, csv, capvar, pernum, thres,
 
         click.echo("Enrichment complete")
 
+        params["enrich_method"] = enrich_method
+        if enrich_method == "perm":
+            params["nperm"] = nperm
+            params["enrich_thresh"] = enrich_thresh
+            params["genecol"] = genecol
+            params["seed"] = seed
+
+    adata.uns["cdr_params"] = params
+
     # --- summary ---
     click.echo(format_run_summary(adata, phenotype, enriched=enrich))
 
@@ -463,3 +563,9 @@ def run(input, phenotype, output, csv, capvar, pernum, thres,
         if df is not None:
             _serialize_genes_column(df).to_csv(csv, index=False)
             click.echo(f"Wrote {csv}")
+
+    if report_path:
+        from .reporting import generate_html_report
+
+        generate_html_report(adata, report_path, phenotype)
+        click.echo(f"Wrote {report_path}")

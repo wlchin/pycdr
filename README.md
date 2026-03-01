@@ -144,10 +144,17 @@ pycdr --help
 # Minimal — run CDR-g analysis
 pycdr run data.h5ad -p stim
 
-# With gene filtering and Kruskal-Wallis enrichment
+# End-to-end: filter, analyze, enrich, and generate HTML report
 pycdr run data.h5ad -p stim -o results.h5ad -c results.csv \
   --filter-method numcells --min-cells 25 \
-  --enrich --enrich-method kruskal
+  --enrich --enrich-method kruskal --report report.html
+
+# Subset to a specific cell population before analysis
+pycdr run data.h5ad -p stim --subset "celltype=T_cells"
+
+# Multiple subset values (OR) and multiple columns (AND)
+pycdr run data.h5ad -p stim \
+  --subset "celltype=T_cells,NK_cells" --subset "batch=batch1"
 
 # Inspect a dataset
 pycdr info data.h5ad -p stim
@@ -173,12 +180,14 @@ pycdr report analyzed.h5ad -p stim -o report.html
 | Option | Default | Description |
 |--------|---------|-------------|
 | `-p, --phenotype` | required | Condition column in `adata.obs` |
+| `-s, --subset` | — | Subset cells: `COLUMN=VALUE[,VALUE2]`. Repeatable. |
 | `-o, --output` | `{stem}_cdr.h5ad` | Output .h5ad path |
 | `-c, --csv` | — | Export results CSV |
 | `--filter-method` | `none` | `none`, `percent`, or `numcells` |
 | `--enrich / --no-enrich` | off | Run enrichment after analysis |
 | `--enrich-method` | `perm` | `perm` (chi-square) or `kruskal` (KW test) |
 | `--genecol` | — | Gene name column (required for perm) |
+| `--report` | — | Generate an HTML report at this path |
 | `-v / -vv` | — | INFO / DEBUG logging |
 
 Run `pycdr run --help` for the full list of options.

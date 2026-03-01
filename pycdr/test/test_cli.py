@@ -285,6 +285,21 @@ def test_run_with_kruskal(runner, muscle_path, tmp_path_factory):
     assert "FDR" in result.output
 
 
+def test_run_with_report(runner, muscle_path, tmp_path_factory):
+    outdir = tmp_path_factory.mktemp("cli_run_report")
+    out = str(outdir / "out.h5ad")
+    report = str(outdir / "report.html")
+    result = runner.invoke(cli, [
+        "run", muscle_path, "-p", "Hours", "-o", out,
+        "--report", report,
+    ])
+    assert result.exit_code == 0
+    assert "CDR-g analysis complete" in result.output
+    assert Path(report).exists()
+    content = Path(report).read_text()
+    assert "<html" in content
+
+
 def test_run_bad_phenotype(runner, muscle_path):
     result = runner.invoke(cli, ["run", muscle_path, "-p", "NONEXISTENT"])
     assert result.exit_code != 0
@@ -295,3 +310,90 @@ def test_run_enrich_missing_genecol(runner, muscle_path):
         "run", muscle_path, "-p", "Hours", "--enrich",
     ])
     assert result.exit_code != 0
+
+
+# ---------------------------------------------------------------------------
+# subset
+# ---------------------------------------------------------------------------
+
+def test_info_with_subset(runner, muscle_path):
+    result = runner.invoke(cli, [
+        "info", muscle_path, "-p", "Hours", "-s", "Media=GM",
+    ])
+    assert result.exit_code == 0
+    assert "Subset:" in result.output
+    assert "Phenotype" in result.output
+
+
+def test_run_with_subset(runner, muscle_path, tmp_path_factory):
+    out = str(tmp_path_factory.mktemp("cli_subset_run") / "out.h5ad")
+    result = runner.invoke(cli, [
+        "run", muscle_path, "-p", "Hours", "-o", out,
+        "-s", "Media=GM",
+    ])
+    assert result.exit_code == 0
+    assert "Subset:" in result.output
+    assert "CDR-g analysis complete" in result.output
+    adata = ad.read_h5ad(out)
+    # All cells should be GM only
+    assert (adata.obs["Media"] == "GM").all()
+
+
+def test_run_with_multi_value_subset(runner, muscle_path, tmp_path_factory):
+    out = str(tmp_path_factory.mktemp("cli_subset_multi") / "out.h5ad")
+    result = runner.invoke(cli, [
+        "run", muscle_path, "-p", "Hours", "-o", out,
+        "-s", "State=1,2",
+    ])
+    assert result.exit_code == 0
+    assert "Subset:" in result.output
+    adata = ad.read_h5ad(out)
+    assert set(adata.obs["State"].unique()).issubset({1, 2})
+
+
+def test_run_with_multiple_subset_flags(runner, muscle_path, tmp_path_factory):
+    out = str(tmp_path_factory.mktemp("cli_subset_and") / "out.h5ad")
+    result = runner.invoke(cli, [
+        "run", muscle_path, "-p", "Hours", "-o", out,
+        "-s", "Media=GM", "-s", "State=1,2",
+    ])
+    assert result.exit_code == 0
+    assert "Subset:" in result.output
+    adata = ad.read_h5ad(out)
+    assert (adata.obs["Media"] == "GM").all()
+
+
+def test_subset_bad_column(runner, muscle_path):
+    result = runner.invoke(cli, [
+        "info", muscle_path, "-s", "NONEXISTENT=foo",
+    ])
+    assert result.exit_code != 0
+    assert "not found" in result.output
+
+
+def test_subset_bad_value(runner, muscle_path):
+    result = runner.invoke(cli, [
+        "info", muscle_path, "-s", "Media=NONEXISTENT",
+    ])
+    assert result.exit_code != 0
+    assert "No cells match" in result.output
+
+
+def test_subset_bad_format(runner, muscle_path):
+    result = runner.invoke(cli, [
+        "info", muscle_path, "-s", "no_equals_sign",
+    ])
+    assert result.exit_code != 0
+    assert "Invalid subset format" in result.output
+
+
+def test_filter_with_subset(runner, muscle_path, tmp_path_factory):
+    out = str(tmp_path_factory.mktemp("cli_subset_filter") / "filt.h5ad")
+    result = runner.invoke(cli, [
+        "filter", muscle_path, "-m", "numcells",
+        "--count-threshold", "5", "--min-cells", "10",
+        "-s", "Media=GM", "-o", out,
+    ])
+    assert result.exit_code == 0
+    assert "Subset:" in result.output
+    assert "After filtering" in result.output
