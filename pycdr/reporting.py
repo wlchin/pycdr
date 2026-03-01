@@ -110,9 +110,18 @@ def get_factor_summary(adata):
                 if idxs:
                     z_vals = zscores[idxs, fi]
                     mean_z = float(np.mean(z_vals))
-                    # Top 3 by z-score
+                    # Top 3 by z-score (deduplicated)
                     order = np.argsort(z_vals)[::-1]
-                    top = [genes[j] for j in order[:3] if j < len(genes)]
+                    seen = set()
+                    top = []
+                    for j in order:
+                        if j < len(genes):
+                            g = genes[j]
+                            if g not in seen:
+                                seen.add(g)
+                                top.append(g)
+                            if len(top) == 3:
+                                break
 
         row = {
             "factor": fname,
@@ -460,8 +469,6 @@ test confirms significance.
 <h2>Factor Summary</h2>
 {factor_table_html}
 
-{enrichment_section}
-
 {figure_section}
 
 <hr>
@@ -489,20 +496,16 @@ def generate_html_report(adata, output_path, phenotype):
     n_factors = adata.uns.get("selected_loading", len(fl))
     factors_with_genes = sum(1 for v in fl.values() if len(v) > 0)
 
-    # Factor summary table
+    # Factor summary table — only factors with genes
     df = get_factor_summary(adata)
+    df = df[df["n_genes"] > 0]
     df["factor"] = df["factor"].map(_pretty_factor_name)
     factor_table_html = _df_to_html_table(df)
 
-    # Enrichment section and guide
+    # Enrichment guide for the "How to read" section
     enrich_stats = adata.uns.get("enrichment_stats")
     has_enrichment = enrich_stats is not None and isinstance(enrich_stats, pd.DataFrame)
     if has_enrichment:
-        enrich_display = enrich_stats.reset_index().rename(columns={"index": "factor"})
-        enrich_display["factor"] = enrich_display["factor"].map(_pretty_factor_name)
-        enrichment_section = "<h2>Enrichment Statistics</h2>\n" + _df_to_html_table(
-            enrich_display
-        )
         # Determine which method was used from column names
         if "stat" in enrich_stats.columns and "pval" in enrich_stats.columns:
             method_note = (
@@ -550,7 +553,6 @@ def generate_html_report(adata, output_path, phenotype):
             "</dl>"
         )
     else:
-        enrichment_section = ""
         enrichment_guide = (
             '<p><em>No enrichment analysis was run. Use '
             '<code>--enrich</code> with <code>pycdr run</code> or '
@@ -575,7 +577,6 @@ def generate_html_report(adata, output_path, phenotype):
         params_section=params_section,
         factor_table_html=factor_table_html,
         enrichment_guide=enrichment_guide,
-        enrichment_section=enrichment_section,
         figure_section=figure_section,
     )
 
