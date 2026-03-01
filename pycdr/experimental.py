@@ -1,22 +1,22 @@
-from scipy.stats import rankdata
-import tqdm
+import numpy as np
+import scipy
 import pandas as pd
+from scipy.stats import rankdata
 from scipy import stats
 from statsmodels.stats.multitest import fdrcorrection
-import numpy as np
+import tqdm
 
 
 def create_rank_matrix(X):
-    """create rank matrix for ssgsea
+    """Create a gene-by-cell ranking matrix for ssGSEA scoring.
 
     Args:
-        X (array): can be sparse or numpy array
+        X (array): Expression matrix (cells x genes), can be sparse or dense.
 
     Returns:
-        array: ranking matrix for all genes
+        numpy.ndarray: Ranking matrix of shape (n_genes, n_cells).
     """
     arr = X
-    import scipy
     if scipy.sparse.issparse(arr):
         arr = arr.toarray()
     arrrank = rankdata(arr.T, axis=0, method="min")
@@ -24,11 +24,15 @@ def create_rank_matrix(X):
 
 
 def calculate_enrichment_single_geneset(geneset, arr_index, arrrank):
-    """get a list of a single geneset 
+    """Compute ssGSEA enrichment scores for a single gene set.
+
     Args:
-        gmtfile
+        geneset (list): Gene names belonging to the gene set.
+        arr_index (pandas.Index): Gene names corresponding to rows of arrrank.
+        arrrank (numpy.ndarray): Ranking matrix of shape (n_genes, n_cells).
+
     Returns:
-        vector of gene set enrichment 
+        numpy.ndarray: Enrichment score vector of length n_cells.
     """
     genelength = arrrank.shape[0]
     ind = arr_index.isin(geneset)
@@ -38,34 +42,37 @@ def calculate_enrichment_single_geneset(geneset, arr_index, arrrank):
 
 
 def calculate_enrichment_all_sets(dict_gene, arr_index, arrank):
-    """perform enrichment on all the sets 
+    """Compute ssGSEA enrichment scores for all gene sets.
+
     Args:
-        gmtfile or dictionary
-        rank matrix
+        dict_gene (dict): Mapping of gene set names to gene lists.
+        arr_index (pandas.Index): Gene names corresponding to rows of arrank.
+        arrank (numpy.ndarray): Ranking matrix of shape (n_genes, n_cells).
+
     Returns:
-        mat of gene set enrichment 
+        pandas.DataFrame: Enrichment scores with cells as rows and gene sets as columns.
     """
-    
+
     res_dict = {}
-  
+
     for i, geneset in tqdm.tqdm(dict_gene.items()):
         res = calculate_enrichment_single_geneset(geneset,  arr_index, arrank)
         res_dict[i] = res
-    
+
     enrichment_df = pd.DataFrame.from_dict(res_dict)
-    
+
     return enrichment_df
 
 
 def calculate_kruskal_wallis(enrichment_ser, pheno_ser):
-    """_summary_
+    """Test whether enrichment scores differ across phenotype groups using Kruskal-Wallis.
 
     Args:
-        enrichment_ser (_type_): _description_
-        pheno_ser (_type_): _description_
+        enrichment_ser (pandas.Series): Enrichment scores for one gene set.
+        pheno_ser (pandas.Series): Phenotype labels for each cell.
 
     Returns:
-        _type_: _description_
+        tuple: (H-statistic, p-value) from the Kruskal-Wallis test.
     """
     # break al values into list of lists
     # then use kruskal wallis for this
@@ -77,103 +84,124 @@ def calculate_kruskal_wallis(enrichment_ser, pheno_ser):
 
 
 def calculate_kruskal_wallis_all_sets(enrichment_df, pheno_ser):
-    """_summary_
+    """Run Kruskal-Wallis tests across all gene sets with FDR correction.
 
     Args:
-        enrichment_df (_type_): _description_
-        pheno_ser (_type_): _description_
+        enrichment_df (pandas.DataFrame): Enrichment score matrix (cells x gene sets).
+        pheno_ser (pandas.Series): Phenotype labels for each cell.
 
     Returns:
-        _type_: _description_
+        pandas.DataFrame: Results with columns ``stat``, ``pval``, ``fdr``,
+            sorted by descending statistic and ascending FDR.
     """
     enrichment_df.index = pheno_ser.index
     factors = enrichment_df.columns
-    
+
     results = {}
     for i in factors:
         enrichment_ser = enrichment_df[i]
         stat, pval = calculate_kruskal_wallis(enrichment_ser, pheno_ser)
         results[i] = [stat, pval]
-    
+
     res = pd.DataFrame.from_dict(results, orient='index')
     res.columns = ["stat", "pval"]
     res["fdr"] = fdrcorrection(res["pval"])[1]
     res_sorted = res.sort_values(['stat', 'fdr'], ascending=[False, True])
-        
+
     return res_sorted
 
 
 def calculate_enrichment(adata, pheno):
-    """_summary_
+    """Run Kruskal-Wallis enrichment analysis on CDR-g factor loadings.
+
+    Computes ssGSEA enrichment scores for each factor loading gene set,
+    then tests for differential enrichment across phenotype groups using
+    a Kruskal-Wallis test with FDR correction.
 
     Args:
-        adata (_type_): _description_
-        pheno (_type_): _description_
+        adata (anndata.AnnData): AnnData object after ``run_CDR_analysis``.
+            Must contain ``adata.uns["factor_loadings"]``.
+        pheno (str): Column name in ``adata.obs`` identifying the condition of interest.
 
     Returns:
-        _type_: _description_
+        pandas.DataFrame: Results with columns ``stat``, ``pval``, ``fdr``,
+            indexed by factor name and sorted by descending statistic.
+
+    Side effects:
+        Stores the following keys on *adata*:
+
+        - ``adata.layers["rank_matrix"]``: gene-by-cell ranking matrix (transposed).
+        - ``adata.obsm["enrichment_score_matrix"]``: enrichment score matrix.
+        - ``adata.uns["enrichment_stats"]``: the returned DataFrame (for ``output_results``).
     """
     dict_gene = adata.uns["factor_loadings"]
     arr_index = adata.var.index
     pheno_ser = adata.obs[pheno]
-    
+
     arrank = create_rank_matrix(adata.X)
     enrichment_df = calculate_enrichment_all_sets(dict_gene, arr_index, arrank)
     results = calculate_kruskal_wallis_all_sets(enrichment_df, pheno_ser)
-    
+
     # storage
     adata.layers['rank_matrix'] = arrank.T
     adata.obsm["enrichment_score_matrix"] = enrichment_df.to_numpy()
-    
+    adata.uns["enrichment_stats"] = results
+
     return results
 
 
 def binarize_gset(arrrank, arr_index, geneset, nperm = 50, threshold=0.1, seed=42):
-    """calculate binary activation of gene set through permutation
+    """Determine binary gene set activation via permutation testing.
 
-    Calculates pvalues through comparing with permutation of matrices.
-    Cells with active geneset have pvals below threshold
+    Compares each cell's enrichment score against a null distribution
+    built from *nperm* row-permutations of the ranking matrix. Cells
+    whose score exceeds the null at the given threshold are considered
+    active.
 
     Args:
-        arrrank (_type_): _description_
-        geneset (_type_): _description_
-        nperm (int, optional): Defaults to 50
-        threshold (float, optional): _description_. Defaults to 01.
-        seed (int, optional): _description_. Defaults to 42.
+        arrrank (numpy.ndarray): Ranking matrix of shape (n_genes, n_cells).
+        arr_index (pandas.Index): Gene names corresponding to rows of arrrank.
+        geneset (list): Gene names belonging to the gene set.
+        nperm (int, optional): Number of permutations. Defaults to 50.
+        threshold (float, optional): P-value cutoff for activation. Defaults to 0.1.
+        seed (int, optional): Random seed for reproducibility. Defaults to 42.
 
     Returns:
-        _type_: _description_
+        tuple: (pmat, matreal, active_cells) where *pmat* is the permutation
+            p-value array, *matreal* is the observed enrichment score, and
+            *active_cells* is a boolean array indicating activation.
     """
-    perm_list = []
-    np.random.seed(seed)
+    rng = np.random.default_rng(seed)
 
     matreal = calculate_enrichment_single_geneset(geneset, arr_index, arrrank)
 
+    genelength = arrrank.shape[0]
+    mato = np.empty((nperm, arrrank.shape[1]))
     for i in range(nperm):
-        arr_permuted = np.random.permutation(arrrank.T).T  # issue np permute
-        matperm = calculate_enrichment_single_geneset(geneset, arr_index, arr_permuted)
-        perm_list.append(matperm)
-
-    mato = np.vstack(perm_list)  # allowing vectorisation
+        perm_idx = rng.permutation(genelength)
+        mato[i] = calculate_enrichment_single_geneset(geneset, arr_index, arrrank[perm_idx])
     pmat = (nperm - np.sum(matreal > mato, 0))/nperm
     active_cells = pmat < threshold
-    
+
     return pmat, matreal, active_cells
 
 def binarize_gset_on_adata(adata, factor_list, **kwargs):
-    """driver function for adata object
+    """Compute binary gene set activation for each factor on an AnnData object.
 
     Args:
-        adata (_type_): _description_
-        factor_list (_type_): _description_
+        adata (anndata.AnnData): AnnData object with ``factor_loadings`` in ``.uns``.
+        factor_list (list): Factor keys to process from ``adata.uns["factor_loadings"]``.
+        **kwargs: Passed to :func:`binarize_gset` (e.g. *nperm*, *threshold*, *seed*).
+
+    Returns:
+        numpy.ndarray: Boolean array of shape (n_cells, n_factors).
     """
     arrrank = create_rank_matrix(adata.X)
     arr_index = adata.var.index
     agg = []
-    for i in factor_list:
-        _, _, active_cells = binarize_gset(arrrank, arr_index, kwargs)
+    for factor in factor_list:
+        geneset = adata.uns["factor_loadings"][factor]
+        _, _, active_cells = binarize_gset(arrrank, arr_index, geneset, **kwargs)
         agg.append(active_cells)
 
-    # merge all into array
-    # uns dict list, and store values in mobs so can visualise
-    # return array if required for processing
+    return np.column_stack(agg)

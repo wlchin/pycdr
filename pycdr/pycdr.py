@@ -25,6 +25,11 @@ def run_CDR_analysis(data, phenotype, capvar=0.95, pernum=2000, thres=0.05):
         capvar (float, optional): factor loadings to examine. Defaults to 0.95.
         pernum (int, optional): nperms to determine importance score. Defaults to 2000.
         thres (float, optional): cut-off for permutation importance to select genes. Defaults to 0.05.
+
+    Returns:
+        None. Results are stored in-place on *data.uns*: ``Fs``, ``Ls``,
+        ``Fk``, ``Lk``, ``Fs_diff``, ``zscores``, ``pval_mat``,
+        ``selection``, ``factor_loadings``, and ``selected_loading``.
     """
     start = time.time()
     
@@ -51,14 +56,15 @@ def run_CDR_analysis(data, phenotype, capvar=0.95, pernum=2000, thres=0.05):
 
     
 def svd_and_concatenate(matrixlist, capvar):
-    """_summary_
+    """Concatenate per-condition correlation matrices and perform truncated SVD.
 
     Args:
-        matrixlist (_type_): _description_
-        capvar (_type_): _description_
+        matrixlist (list): Per-condition expression matrices (genes x cells each).
+        capvar (float): Cumulative variance threshold for selecting components.
 
     Returns:
-        _type_: _description_
+        tuple: (Ek, Ss, X, y) — right singular vectors, singular values,
+            concatenated correlation matrix, and number of selected components.
     """
     list_of_dense = [d.toarray() if ss.issparse(d) else d for d in matrixlist]
     list_of_corr_mats = [np.corrcoef(d) for d in list_of_dense]
@@ -107,6 +113,16 @@ def get_bools_of_pheno(ad, pheno):
 
 
 def extract_matrix_from_anndata(ad, pheno_column):
+    """Split the expression matrix by phenotype groups.
+
+    Args:
+        ad (anndata.AnnData): AnnData object.
+        pheno_column (str): Column in ``ad.obs`` identifying conditions.
+
+    Returns:
+        tuple: (list_of_matrices, n_groups) — transposed expression matrices
+            per condition and the number of conditions.
+    """
     ind = get_bools_of_pheno(ad, pheno_column)
     rands = [ad[i,:].X.T for i in ind]
     return rands, len(rands)
@@ -115,6 +131,13 @@ def extract_matrix_from_anndata(ad, pheno_column):
 
 
 def cdr_core(ad, pheno, capvar):
+    """Run the core CDR pipeline: SVD, varimax rotation, and store results in-place.
+
+    Args:
+        ad (anndata.AnnData): AnnData object.
+        pheno (str): Phenotype column in ``ad.obs``.
+        capvar (float): Cumulative variance threshold for component selection.
+    """
     matlist, numpheno = extract_matrix_from_anndata(ad, pheno)
     Ee, Ss, _, N  = svd_and_concatenate(matlist, capvar) # specify algorithm
     Fs, Ls, Fk, Lk = process_svd_to_factors(Ee, Ss, N)
@@ -149,13 +172,13 @@ def classic_orthomax(Phi, gamma=1, q=20, tol=1e-6):
 
 
 def flip_Ek(Ek):
-    """Eigenvectors will "point up" function.
+    """Flip eigenvectors so that the dominant direction points upward.
 
     Args:
-        Ek (_type_): _description_
+        Ek (numpy.ndarray): Factor loading matrix of shape (n_genes, n_factors).
 
     Returns:
-        _type_: _description_
+        numpy.ndarray: Flipped factor loading matrix (same shape).
     """
     n, m = Ek.shape
     e_k_to_flip = abs(Ek.min(axis=0)) > Ek.max(axis=0)
@@ -170,15 +193,17 @@ def flip_Ek(Ek):
 
 
 def get_optimal_threshold(num, thres, ncomp=2000):
-    """selects number of factors for truncated SVD
+    """Select the number of SVD components that capture *thres* cumulative variance.
 
     Args:
-        num (_type_): _description_
-        thres (_type_): _description_
-        ncomp (int, optional): _description_. Defaults to 2000.
+        num (numpy.ndarray): Concatenated correlation matrix.
+        thres (float): Cumulative explained variance threshold (e.g. 0.95).
+        ncomp (int, optional): Maximum components to compute. Defaults to 2000.
 
     Returns:
-        _type_: _description_
+        tuple: (x, y, X, v) — cumulative variance array, selected component
+            count, right singular vectors for those components, and their
+            singular values.
     """
     nrows = num.shape[0]
     numgenes = num.shape[1]

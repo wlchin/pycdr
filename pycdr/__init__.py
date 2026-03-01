@@ -3,7 +3,7 @@
 __version__ = "0.0.3"
 
 from .pycdr import run_CDR_analysis
-from .perm import calculate_enrichment, get_df_loadings
+from .experimental import calculate_enrichment, binarize_gset_on_adata
 from .utils import (
     filter_genecounts_percent,
     filter_genecounts_numcells,
