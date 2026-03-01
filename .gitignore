@@ -20,6 +20,15 @@ htmlcov/
 .venv/
 venv/
 
+# macOS
+.DS_Store
+
+# Claude Code
+.claude/
+
+# uv
+uv.lock
+
 # Benchmark outputs
 benchmarks/data/
 benchmarks/results/
