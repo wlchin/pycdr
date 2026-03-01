@@ -21,17 +21,59 @@ CDR-g requires Python >= 3.9. Install in a virtual environment:
 
 ```bash
 pip install cdr-py
+
+# With plotting support (for pycdr plot / pycdr report figures)
+pip install cdr-py[plot]
 ```
 
-## Input data requirements
+## Preparing your data
 
-CDR-g takes an [AnnData](https://anndata.readthedocs.io/) `.h5ad` file with:
+CDR-g takes an [AnnData](https://anndata.readthedocs.io/) `.h5ad` file. The data must be preprocessed before running CDR-g — normalization and log-transformation are **not** handled by pycdr.
 
-- **`adata.X`** — log-transformed count matrix (cells x genes). Sparse or dense.
-- **`adata.obs`** — must contain a column for the condition/phenotype of interest (e.g. `"stim"`, `"Hours"`)
+### What CDR-g expects
+
+- **`adata.X`** — **log-transformed** count matrix (cells x genes). Sparse or dense.
+- **`adata.obs`** — must contain a column identifying the condition/phenotype of interest (e.g. `"stim"`, `"Hours"`)
 - **`adata.var`** — gene metadata. If running enrichment with the `perm` method, a gene name column (e.g. `"gene_short_name"`) must be present.
 
-Gene filtering (by expression frequency or count thresholds) is recommended to reduce computation time on large datasets.
+### Preprocessing with scanpy (recommended)
+
+Use [scanpy](https://scanpy.readthedocs.io/) or an equivalent tool to prepare your `.h5ad`:
+
+```python
+import scanpy as sc
+
+adata = sc.read_10x_h5("raw_data.h5")  # or any loader
+
+# Standard preprocessing
+sc.pp.filter_cells(adata, min_genes=200)
+sc.pp.filter_genes(adata, min_cells=3)
+sc.pp.normalize_total(adata, target_sum=1e4)
+sc.pp.log1p(adata)
+
+# Ensure the condition column exists in adata.obs
+# e.g. adata.obs["condition"] should contain values like "ctrl", "stim"
+
+adata.write("prepared.h5ad")
+```
+
+### Gene filtering with pycdr
+
+After preprocessing, you can optionally filter lowly-expressed genes to reduce computation time. This is the one preprocessing step that pycdr handles directly, either via the Python API or the CLI:
+
+```bash
+# Filter by minimum number of expressing cells
+pycdr filter prepared.h5ad -m numcells --count-threshold 1 --min-cells 10 -o filtered.h5ad
+
+# Or filter by cell fraction and median count
+pycdr filter prepared.h5ad -m percent --cell-fraction 0.05 --median-count 1.0 -o filtered.h5ad
+```
+
+Alternatively, `pycdr run` can filter in-line with `--filter-method`:
+
+```bash
+pycdr run prepared.h5ad -p condition --filter-method numcells --min-cells 10
+```
 
 ## Python API
 
@@ -91,8 +133,10 @@ pycdr --help
 | `pycdr analyze` | Run CDR-g SVD/varimax analysis only |
 | `pycdr filter` | Filter genes from an .h5ad file |
 | `pycdr enrich` | Run enrichment on previously analyzed data |
-| `pycdr results` | Export results table to CSV/TSV or stdout |
-| `pycdr info` | Display dataset metadata |
+| `pycdr results` | Export results table (CSV, TSV, ASCII table, or markdown) |
+| `pycdr info` | Display dataset metadata and analysis summary |
+| `pycdr plot` | Generate a summary figure (requires `[plot]` extra) |
+| `pycdr report` | Generate a self-contained HTML report |
 
 ### Quick start
 
@@ -100,10 +144,10 @@ pycdr --help
 # Minimal — run CDR-g analysis
 pycdr run data.h5ad -p stim
 
-# With gene filtering and enrichment
+# With gene filtering and Kruskal-Wallis enrichment
 pycdr run data.h5ad -p stim -o results.h5ad -c results.csv \
   --filter-method numcells --min-cells 25 \
-  --enrich --genecol gene_short_name
+  --enrich --enrich-method kruskal
 
 # Inspect a dataset
 pycdr info data.h5ad -p stim
@@ -111,8 +155,17 @@ pycdr info data.h5ad -p stim
 # Export top genes for a specific factor
 pycdr results analyzed.h5ad --top-genes 20 --factor 3
 
+# View results as a readable table in the terminal
+pycdr results analyzed.h5ad -f table
+
 # Re-run enrichment with different parameters
 pycdr enrich analyzed.h5ad -p stim -m kruskal -o enriched.h5ad
+
+# Generate a summary figure
+pycdr plot analyzed.h5ad -o summary.png
+
+# Generate an HTML report
+pycdr report analyzed.h5ad -p stim -o report.html
 ```
 
 ### Common options for `pycdr run`
@@ -129,6 +182,34 @@ pycdr enrich analyzed.h5ad -p stim -m kruskal -o enriched.h5ad
 | `-v / -vv` | — | INFO / DEBUG logging |
 
 Run `pycdr run --help` for the full list of options.
+
+## Interpreting results
+
+CDR-g identifies **factors** — each factor is a co-expression program, a group of genes whose expression changes together between your experimental conditions. After running the pipeline, the key question is: *which factors are biologically meaningful and what do they represent?*
+
+### Factors and gene assignments
+
+- **Factor numbering** (factor.0, factor.1, ...) reflects eigenvalue order. Lower-numbered factors capture more variance in the data, but this does not necessarily mean they are the most biologically interesting.
+- **Gene count** (`n_genes`): The number of genes assigned to a factor by permutation testing (p < 0.05). Factors with many genes represent broad transcriptional programs; those with few genes are more specific. Factors with **0 genes** had no statistically significant condition-dependent co-expression and can usually be ignored.
+- **Mean z-score** (`mean_zscore`): Measures how strongly a factor's genes change across conditions compared to a permutation null. Higher values indicate stronger condition-specific co-expression. A z-score above 2 means a gene's loading difference is well above what would be expected by chance.
+- **Top genes**: The genes with the highest z-scores in each factor. These are the most condition-responsive genes in the program and are the best starting point for biological interpretation — look them up in pathway databases or the literature.
+
+### Enrichment testing
+
+If you run enrichment (`--enrich`), each factor's gene set is tested for differential activity across conditions:
+
+- **Kruskal-Wallis** (`--enrich-method kruskal`): a non-parametric test on ssGSEA enrichment scores. Reports an H-statistic — larger values indicate stronger differences between conditions.
+- **Permutation** (`--enrich-method perm`): a chi-square proportions test on binarized gene set activation. Requires `--genecol`.
+
+Both methods report a **p-value** and a Benjamini-Hochberg **FDR**. Factors with **FDR < 0.05** are considered significantly differentially active between conditions and are the most important to investigate further.
+
+### Practical tips
+
+- Start with factors that have **many genes, high mean z-scores, and significant FDR**. These represent the dominant condition-specific programs.
+- To interpret a factor biologically, look up its top genes in pathway databases (e.g. MSigDB, Enrichr, Gene Ontology).
+- Factors that share genes may represent overlapping or related biological processes.
+- Factors with very few genes (< 5) may reflect noise unless enrichment testing confirms significance — treat them with caution.
+- Use `pycdr report` to generate an HTML report that includes this guidance alongside your results.
 
 ## Example workflows
 
