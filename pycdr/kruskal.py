@@ -25,13 +25,14 @@ def calculate_enrichment_single_geneset(geneset, arr_index, arrrank):
     return matreal
 
 
-def calculate_enrichment_all_sets(dict_gene, arr_index, arrank):
+def calculate_enrichment_all_sets(dict_gene, arr_index, arrank, quiet=False):
     """Compute ssGSEA enrichment scores for all gene sets.
 
     Args:
         dict_gene (dict): Mapping of gene set names to gene lists.
         arr_index (pandas.Index): Gene names corresponding to rows of arrank.
         arrank (numpy.ndarray): Ranking matrix of shape (n_genes, n_cells).
+        quiet (bool): If True, suppress the tqdm progress bar.
 
     Returns:
         pandas.DataFrame: Enrichment scores with cells as rows and gene sets as columns.
@@ -39,7 +40,7 @@ def calculate_enrichment_all_sets(dict_gene, arr_index, arrank):
 
     res_dict = {}
 
-    for i, geneset in tqdm.tqdm(dict_gene.items()):
+    for i, geneset in tqdm.tqdm(dict_gene.items(), disable=quiet):
         res = calculate_enrichment_single_geneset(geneset,  arr_index, arrank)
         res_dict[i] = res
 
@@ -97,7 +98,7 @@ def calculate_kruskal_wallis_all_sets(enrichment_df, pheno_ser):
     return res_sorted
 
 
-def calculate_enrichment(adata, pheno):
+def calculate_enrichment(adata, pheno, quiet=False):
     """Run Kruskal-Wallis enrichment analysis on CDR-g factor loadings.
 
     Computes ssGSEA enrichment scores for each factor loading gene set,
@@ -108,6 +109,7 @@ def calculate_enrichment(adata, pheno):
         adata (anndata.AnnData): AnnData object after ``run_CDR_analysis``.
             Must contain ``adata.uns["factor_loadings"]``.
         pheno (str): Column name in ``adata.obs`` identifying the condition of interest.
+        quiet (bool): If True, suppress the tqdm progress bar.
 
     Returns:
         pandas.DataFrame: Results with columns ``stat``, ``pval``, ``fdr``,
@@ -125,7 +127,7 @@ def calculate_enrichment(adata, pheno):
     pheno_ser = adata.obs[pheno]
 
     arrank = create_rank_matrix(adata.X)
-    enrichment_df = calculate_enrichment_all_sets(dict_gene, arr_index, arrank)
+    enrichment_df = calculate_enrichment_all_sets(dict_gene, arr_index, arrank, quiet=quiet)
     results = calculate_kruskal_wallis_all_sets(enrichment_df, pheno_ser)
 
     # storage

@@ -580,6 +580,8 @@ def run(input, phenotype, output, csv, capvar, pernum, thres,
               show_default=True, help="Directory for demo output files.")
 def demo(output_dir):
     """Run an end-to-end example on bundled test data."""
+    import warnings
+
     import anndata as ad
 
     from .utils import filter_genecounts_numcells, output_results
@@ -588,6 +590,11 @@ def demo(output_dir):
     from .reporting import generate_html_report, format_run_summary
 
     click.echo("pycdr demo: running end-to-end example...\n")
+
+    # Suppress noisy warnings from anndata/numpy that distract from the demo
+    warnings.filterwarnings("ignore", category=UserWarning)
+    warnings.filterwarnings("ignore", category=RuntimeWarning)
+    warnings.filterwarnings("ignore", category=FutureWarning)
 
     # 1. Create output directory
     outdir = Path(output_dir)
@@ -616,7 +623,7 @@ def demo(output_dir):
 
     # 5. Kruskal-Wallis enrichment
     click.echo("Running Kruskal-Wallis enrichment...")
-    calc_kruskal(adata, phenotype)
+    calc_kruskal(adata, phenotype, quiet=True)
     click.echo("  Enrichment complete\n")
 
     # Store params for the report
