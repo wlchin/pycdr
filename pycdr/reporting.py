@@ -12,6 +12,20 @@ import pandas as pd
 # Formatting helpers
 # ---------------------------------------------------------------------------
 
+def _pretty_factor_name(name):
+    """Convert internal factor key to a display name for HTML reports.
+
+    ``"factor.0"`` becomes ``"Factor 0"``, ``"factor.12"`` becomes ``"Factor 12"``.
+    Non-matching names are returned as-is.
+    """
+    if isinstance(name, str) and name.startswith("factor."):
+        try:
+            return f"Factor {int(name.split('.')[-1])}"
+        except ValueError:
+            pass
+    return name
+
+
 def _separator(char="=", width=60):
     """Return a horizontal rule string."""
     return char * width
@@ -405,11 +419,12 @@ between conditions.
 
 <h3>Factor summary table</h3>
 <dl>
-  <dt>factor</dt>
-  <dd>A numbered identifier (e.g. factor.0, factor.1). Factors are ordered by
+  <dt>Factor</dt>
+  <dd>A numbered identifier (e.g. Factor 0, Factor 1). Factors are ordered by
   eigenvalue, so lower-numbered factors capture more variance. A factor with
   <strong>0 genes</strong> showed no statistically significant condition-dependent
-  co-expression and can usually be ignored.</dd>
+  co-expression and can usually be ignored. In the underlying AnnData object,
+  factors are stored as <code>factor.0</code>, <code>factor.1</code>, etc.</dd>
 
   <dt>n_genes</dt>
   <dd>The number of genes assigned to this factor by permutation testing
@@ -476,14 +491,17 @@ def generate_html_report(adata, output_path, phenotype):
 
     # Factor summary table
     df = get_factor_summary(adata)
+    df["factor"] = df["factor"].map(_pretty_factor_name)
     factor_table_html = _df_to_html_table(df)
 
     # Enrichment section and guide
     enrich_stats = adata.uns.get("enrichment_stats")
     has_enrichment = enrich_stats is not None and isinstance(enrich_stats, pd.DataFrame)
     if has_enrichment:
+        enrich_display = enrich_stats.reset_index().rename(columns={"index": "factor"})
+        enrich_display["factor"] = enrich_display["factor"].map(_pretty_factor_name)
         enrichment_section = "<h2>Enrichment Statistics</h2>\n" + _df_to_html_table(
-            enrich_stats.reset_index().rename(columns={"index": "factor"})
+            enrich_display
         )
         # Determine which method was used from column names
         if "stat" in enrich_stats.columns and "pval" in enrich_stats.columns:
