@@ -15,7 +15,7 @@ authors = [
 dependencies = [
     "anndata>=0.9",
     "scipy>=1.10",
-    "dask-ml>=2023.3",
+    "scikit-learn>=1.2",
     "tqdm",
     "pandas>=1.5",
     "numpy>=1.24",
