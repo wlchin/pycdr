@@ -7,6 +7,8 @@ CDR-g identifies **condition-specific gene expression programs** from multi-cond
 
 CDR-g is described in the manuscript **"Spectral detection of condition-specific biological pathways in single-cell gene expression data"**. It extends the CDR framework introduced in [Portes & Small (2020)](https://doi.org/10.1103/PhysRevE.102.062301).
 
+**Contents:** [How it works](#how-it-works) | [Installation](#installation) | [Preparing your data](#preparing-your-data) | [Python API](#python-api) | [CLI](#command-line-interface) | [Interpreting results](#interpreting-results) | [Example workflows](#example-workflows) | [Citation](#citation)
+
 ## How it works
 
 1. **Co-expression matrices** are built per condition from the count matrix (`adata.X`)
@@ -76,6 +78,8 @@ pycdr run prepared.h5ad -p condition --filter-method numcells --min-cells 10
 ```
 
 ## Python API
+
+The CLI covers common workflows, but the Python API gives you direct access to the AnnData object at every step. This is useful when you need to integrate CDR-g into a larger analysis (e.g. combining with scanpy clustering or differential expression), inspect intermediate results programmatically, or build custom visualizations from the factor loadings and enrichment scores.
 
 ```python
 import anndata as ad
