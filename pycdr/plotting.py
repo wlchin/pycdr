@@ -1,5 +1,7 @@
 """Matplotlib-based summary figures for pycdr CDR-g results."""
 
+import logging
+
 try:
     import matplotlib
     matplotlib.use("Agg")
@@ -13,14 +15,42 @@ except ImportError as _exc:
 import numpy as np
 import pandas as pd
 
+logger = logging.getLogger(__name__)
 
-def plot_summary(adata, output_path, dpi=150):
+DEFAULT_MAX_FACTORS = 30
+
+
+def _rank_factors(fl, enrich_stats):
+    """Rank factors by enrichment FDR (ascending), then gene count (descending).
+
+    Returns an ordered list of factor names.
+    """
+    factor_names = list(fl.keys())
+    has_fdr = (
+        enrich_stats is not None
+        and isinstance(enrich_stats, pd.DataFrame)
+        and "fdr" in enrich_stats.columns
+    )
+
+    def sort_key(fname):
+        fdr = enrich_stats.loc[fname, "fdr"] if has_fdr and fname in enrich_stats.index else 1.0
+        gene_count = len(fl.get(fname, []))
+        # Sort by FDR ascending, then gene count descending
+        return (fdr, -gene_count)
+
+    return sorted(factor_names, key=sort_key)
+
+
+def plot_summary(adata, output_path, dpi=150, max_factors=DEFAULT_MAX_FACTORS):
     """Generate a multi-panel summary figure from CDR-g results.
 
     Panels:
     (a) Horizontal bar chart of gene counts per factor.
     (b) Heatmap of top genes x factors (z-scores).
     (c) Horizontal bar chart of -log10(FDR) per factor (if enrichment available).
+
+    When there are more factors than *max_factors*, only the top factors
+    are shown, ranked by enrichment FDR (if available) then gene count.
 
     Parameters
     ----------
@@ -30,6 +60,14 @@ def plot_summary(adata, output_path, dpi=150):
         Where to save the figure (PNG format).
     dpi : int
         Figure resolution.
+    max_factors : int or None
+        Maximum number of factors to display. Set to ``None`` to show all.
+        Defaults to 30.
+
+    Returns
+    -------
+    int or None
+        Number of factors omitted from the plot, or ``None`` if all are shown.
     """
     fl = adata.uns.get("factor_loadings", {})
     zscores = adata.uns.get("zscores")
@@ -37,14 +75,33 @@ def plot_summary(adata, output_path, dpi=150):
     gene_names = adata.var_names.tolist()
 
     # --- data prep ---
-    factor_names = list(fl.keys())
-    gene_counts = [len(fl[f]) for f in factor_names]
+    all_factor_names = list(fl.keys())
+    total_factors = len(all_factor_names)
 
     has_enrichment = (
         enrich_stats is not None
         and isinstance(enrich_stats, pd.DataFrame)
         and "fdr" in enrich_stats.columns
     )
+
+    # Limit displayed factors
+    n_omitted = None
+    if max_factors is not None and total_factors > max_factors:
+        ranked = _rank_factors(fl, enrich_stats)
+        factor_names = ranked[:max_factors]
+        n_omitted = total_factors - max_factors
+        logger.info(
+            "Showing top %d of %d factors (ranked by %s). "
+            "%d factors omitted. Use --max-factors to adjust.",
+            max_factors, total_factors,
+            "FDR then gene count" if has_enrichment else "gene count",
+            n_omitted,
+        )
+    else:
+        factor_names = all_factor_names
+
+    gene_counts = [len(fl[f]) for f in factor_names]
+
     n_panels = 3 if has_enrichment else 2
 
     fig, axes = plt.subplots(1, n_panels, figsize=(5 * n_panels, max(4, len(factor_names) * 0.35)))
@@ -59,7 +116,10 @@ def plot_summary(adata, output_path, dpi=150):
     ax.set_yticklabels(factor_names, fontsize=8)
     ax.invert_yaxis()
     ax.set_xlabel("Gene count")
-    ax.set_title("(a) Genes per factor")
+    title_a = "(a) Genes per factor"
+    if n_omitted:
+        title_a += f" (top {len(factor_names)} of {total_factors})"
+    ax.set_title(title_a)
 
     # --- Panel (b): z-score heatmap ---
     ax = axes[1]
@@ -144,3 +204,5 @@ def plot_summary(adata, output_path, dpi=150):
     plt.tight_layout()
     fig.savefig(output_path, dpi=dpi, bbox_inches="tight", format="png")
     plt.close(fig)
+
+    return n_omitted
