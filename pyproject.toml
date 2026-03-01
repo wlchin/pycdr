@@ -32,6 +32,7 @@ Homepage = "https://github.com/wlchin/pycdr"
 [project.optional-dependencies]
 test = ["pytest", "pytest-cov"]
 benchmark = ["snakemake>=7", "matplotlib>=3.5"]
+plot = ["matplotlib>=3.5"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["pycdr"]
