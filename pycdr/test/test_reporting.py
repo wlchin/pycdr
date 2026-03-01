@@ -148,6 +148,37 @@ def test_html_report_basic(analyzed_adata, tmp_path):
     assert "factor." in content
 
 
+def test_html_report_with_params(analyzed_adata, tmp_path):
+    adata = analyzed_adata.copy()
+    adata.uns["cdr_params"] = {
+        "phenotype": "Hours",
+        "capvar": 0.95,
+        "pernum": 2000,
+        "thres": 0.05,
+        "filter_method": "numcells",
+        "count_threshold": 1,
+        "min_cells": 10,
+        "enrich_method": "kruskal",
+        "subset": [],
+    }
+    out = tmp_path / "report_params.html"
+    generate_html_report(adata, str(out), "Hours")
+    content = out.read_text()
+    assert "Run Parameters" in content
+    assert "capvar" in content
+    assert "numcells" in content
+    assert "kruskal" in content
+
+
+def test_html_report_no_params(analyzed_adata, tmp_path):
+    adata = analyzed_adata.copy()
+    adata.uns.pop("cdr_params", None)
+    out = tmp_path / "report_no_params.html"
+    generate_html_report(adata, str(out), "Hours")
+    content = out.read_text()
+    assert "Run Parameters" not in content
+
+
 def test_html_report_without_matplotlib(analyzed_adata, tmp_path, monkeypatch):
     """When matplotlib is not available, report should include install note."""
     import pycdr.reporting as rep_mod

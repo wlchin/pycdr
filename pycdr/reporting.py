@@ -107,13 +107,28 @@ def get_factor_summary(adata):
             "mean_zscore": round(mean_z, 2) if not np.isnan(mean_z) else np.nan,
         }
 
-        # Add enrichment FDR if available
+        # Add enrichment FDR and dominant condition if available
         enrich_stats = adata.uns.get("enrichment_stats", None)
+        enrich_dominant = None
         if enrich_stats is not None and isinstance(enrich_stats, pd.DataFrame):
             if fname in enrich_stats.index:
                 fdr_col = "fdr" if "fdr" in enrich_stats.columns else None
                 if fdr_col:
                     row["enrich_fdr"] = enrich_stats.loc[fname, fdr_col]
+                if "dominant_condition" in enrich_stats.columns:
+                    enrich_dominant = enrich_stats.loc[fname, "dominant_condition"]
+
+        # Dominant condition: prefer enrichment-derived, fall back to Fs-based
+        fs_dominant = adata.uns.get("dominant_condition")
+        if enrich_dominant is not None:
+            row["dominant_condition"] = str(enrich_dominant)
+        elif fs_dominant is not None:
+            try:
+                fi = int(fname.split(".")[-1])
+                if fi < len(fs_dominant):
+                    row["dominant_condition"] = str(fs_dominant[fi])
+            except (ValueError, IndexError):
+                pass
 
         rows.append(row)
 
@@ -170,6 +185,9 @@ def format_run_summary(adata, phenotype, enriched=False):
     if len(df) > 0:
         headers = ["Factor", "Genes", "Mean Z"]
         has_fdr = "enrich_fdr" in df.columns
+        has_condition = "dominant_condition" in df.columns
+        if has_condition:
+            headers.append("Condition")
         if has_fdr:
             headers.append("FDR")
         headers.append("Top genes")
@@ -177,6 +195,8 @@ def format_run_summary(adata, phenotype, enriched=False):
         rows = []
         for _, r in df.iterrows():
             row = [r["factor"], str(r["n_genes"]), f"{r['mean_zscore']:.2f}"]
+            if has_condition:
+                row.append(str(r.get("dominant_condition", "")))
             if has_fdr:
                 fdr = r.get("enrich_fdr", np.nan)
                 row.append(f"{fdr:.2e}" if not pd.isna(fdr) else "n/a")
@@ -503,6 +523,12 @@ def generate_html_report(adata, output_path, phenotype):
             "FDR&nbsp;&lt;&nbsp;0.05 are considered significantly enriched "
             "across conditions. These are the most biologically meaningful "
             "factors to investigate further.</dd>\n"
+            "  <dt>dominant_condition</dt>\n"
+            "  <dd>The phenotype group that drives this factor most strongly. "
+            "When enrichment is available, this is determined by the condition "
+            "with the highest median ssGSEA score; otherwise it is derived "
+            "from the condition with the highest mean absolute factor "
+            "loading.</dd>\n"
             "</dl>"
         )
     else:
@@ -555,13 +581,14 @@ def _build_params_section(adata):
     rows.append(("Permutations (pernum)", str(params.get("pernum", "n/a"))))
     rows.append(("P-value threshold (thres)", str(params.get("thres", "n/a"))))
 
-    # Subset
+    # Subset — may be a list or numpy array after h5ad round-trip
     subset = params.get("subset", [])
-    if subset:
-        rows.append(("Cell subset", _html.escape(", ".join(subset))))
+    subset_list = list(subset) if hasattr(subset, '__iter__') and not isinstance(subset, str) else []
+    if len(subset_list) > 0:
+        rows.append(("Cell subset", _html.escape(", ".join(str(s) for s in subset_list))))
 
     # Filter parameters
-    fm = params.get("filter_method", "none")
+    fm = str(params.get("filter_method", "none"))
     if fm and fm != "none":
         rows.append(("Filter method", _html.escape(fm)))
         if fm == "percent":
@@ -574,13 +601,13 @@ def _build_params_section(adata):
     # Enrichment parameters
     em = params.get("enrich_method")
     if em:
-        rows.append(("Enrichment method", _html.escape(em)))
-        if em == "perm":
+        rows.append(("Enrichment method", _html.escape(str(em))))
+        if str(em) == "perm":
             rows.append(("  nperm", str(params.get("nperm", ""))))
             rows.append(("  enrich_thresh", str(params.get("enrich_thresh", ""))))
             gc = params.get("genecol")
             if gc:
-                rows.append(("  genecol", _html.escape(gc)))
+                rows.append(("  genecol", _html.escape(str(gc))))
             rows.append(("  seed", str(params.get("seed", ""))))
 
     lines = ['<h2>Run Parameters</h2>', "<table>"]

@@ -147,6 +147,7 @@ def get_df_loadings(adata):
     b = tidy_up_dict(b_)
     whole = a.merge(b)
     whole = whole.dropna()
+    whole = whole.rename(columns={"max_P": "dominant_condition"})
     ps = whole["pvalue"]
     whole["fdr"] = fdrcorrection(ps)[1]
 

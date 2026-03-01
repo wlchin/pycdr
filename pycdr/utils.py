@@ -152,6 +152,14 @@ def output_results(adata):
 
     df = pd.DataFrame.from_dict(rows, orient="index")
 
+    # Add Fs-based dominant condition as fallback
+    fs_dominant = adata.uns.get("dominant_condition")
+    if fs_dominant is not None:
+        # Build a mapping from factor name to dominant condition
+        n_factors = len(fs_dominant)
+        dc_map = {f"factor.{i}": fs_dominant[i] for i in range(n_factors)}
+        df["dominant_condition"] = df.index.map(dc_map)
+
     # Join enrichment terms if available
     enrich_results = adata.uns.get("enrichment_results")
     if enrich_results is not None:
@@ -167,6 +175,9 @@ def output_results(adata):
     # Join enrichment stats if available
     enrich_stats = adata.uns.get("enrichment_stats")
     if enrich_stats is not None and isinstance(enrich_stats, pd.DataFrame):
+        # If enrichment provides dominant_condition, drop Fs-based fallback first
+        if "dominant_condition" in enrich_stats.columns and "dominant_condition" in df.columns:
+            df = df.drop(columns=["dominant_condition"])
         df = pd.concat([df, enrich_stats], join="inner", axis=1)
 
     return df

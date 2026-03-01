@@ -120,14 +120,43 @@ def extract_matrix_from_anndata(ad, pheno_column):
         pheno_column (str): Column in ``ad.obs`` identifying conditions.
 
     Returns:
-        tuple: (list_of_matrices, n_groups) — transposed expression matrices
-            per condition and the number of conditions.
+        tuple: (list_of_matrices, n_groups, condition_labels) — transposed
+            expression matrices per condition, the number of conditions, and
+            the condition label strings (in the same order as the matrices).
     """
-    ind = get_bools_of_pheno(ad, pheno_column)
+    phenotypes = ad.obs[pheno_column].unique()
+    ind = [ad.obs[pheno_column] == p for p in phenotypes]
     rands = [ad[i,:].X.T for i in ind]
-    return rands, len(rands)
+    condition_labels = [str(p) for p in phenotypes]
+    return rands, len(rands), condition_labels
 
 # functions for generating pvals and integrating whole varimax
+
+
+def compute_dominant_condition(Fs, n_conditions, condition_labels):
+    """Identify the dominant condition for each factor from the Fs matrix.
+
+    Reshapes Fs to ``(n_conditions, n_genes, n_factors)``, computes the mean
+    absolute loading per condition per factor, and returns the condition with
+    the highest mean for each factor.
+
+    Args:
+        Fs (numpy.ndarray): Factor loading matrix of shape
+            ``(n_genes * n_conditions, n_factors)``.
+        n_conditions (int): Number of phenotype groups.
+        condition_labels (list[str]): Condition names in the same order as the
+            blocks of Fs.
+
+    Returns:
+        list[str]: Dominant condition label for each factor.
+    """
+    n_genes = Fs.shape[0] // n_conditions
+    # (n_conditions, n_genes, n_factors)
+    reshaped = Fs.reshape(n_conditions, n_genes, -1)
+    # mean absolute loading per condition per factor -> (n_conditions, n_factors)
+    mean_abs = np.abs(reshaped).mean(axis=1)
+    dominant_idx = mean_abs.argmax(axis=0)
+    return [condition_labels[i] for i in dominant_idx]
 
 
 def cdr_core(ad, pheno, capvar):
@@ -138,7 +167,7 @@ def cdr_core(ad, pheno, capvar):
         pheno (str): Phenotype column in ``ad.obs``.
         capvar (float): Cumulative variance threshold for component selection.
     """
-    matlist, numpheno = extract_matrix_from_anndata(ad, pheno)
+    matlist, numpheno, condition_labels = extract_matrix_from_anndata(ad, pheno)
     Ee, Ss, _, N  = svd_and_concatenate(matlist, capvar) # specify algorithm
     Fs, Ls, Fk, Lk = process_svd_to_factors(Ee, Ss, N)
     ad.uns["selected_loading"] = N
@@ -148,6 +177,8 @@ def cdr_core(ad, pheno, capvar):
     ad.uns["Lk"] = Lk
     ad.uns["n_pheno"] = numpheno
     ad.uns["Fs_diff"] = calculate_minmax(Fs, numpheno)
+    ad.uns["condition_labels"] = condition_labels
+    ad.uns["dominant_condition"] = compute_dominant_condition(Fs, numpheno, condition_labels)
         
 # leos' aux functions for performing varimax
 

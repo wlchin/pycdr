@@ -85,10 +85,12 @@ def calculate_kruskal_wallis_all_sets(enrichment_df, pheno_ser):
     for i in factors:
         enrichment_ser = enrichment_df[i]
         stat, pval = calculate_kruskal_wallis(enrichment_ser, pheno_ser)
-        results[i] = [stat, pval]
+        medians = enrichment_ser.groupby(pheno_ser).median()
+        dominant = str(medians.idxmax()) if medians.notna().any() else ""
+        results[i] = [stat, pval, dominant]
 
     res = pd.DataFrame.from_dict(results, orient='index')
-    res.columns = ["stat", "pval"]
+    res.columns = ["stat", "pval", "dominant_condition"]
     res["fdr"] = fdrcorrection(res["pval"])[1]
     res_sorted = res.sort_values(['stat', 'fdr'], ascending=[False, True])
 

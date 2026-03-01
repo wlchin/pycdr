@@ -266,3 +266,54 @@ def test_perm_enrichment_stores_stats(analyzed_muscle):
     # output_results should work without error
     result = utils.output_results(adata)
     assert result is not None
+
+
+# --- F. Dominant condition mapping ---
+
+def test_dominant_condition_in_uns(analyzed_muscle):
+    """dominant_condition should be a sequence of strings with one entry per factor."""
+    dc = analyzed_muscle.uns.get("dominant_condition")
+    assert dc is not None
+    n_factors = analyzed_muscle.uns["selected_loading"]
+    # After h5ad round-trip, lists become numpy arrays
+    assert len(dc) == n_factors
+    assert all(isinstance(str(v), str) for v in dc)
+
+def test_condition_labels_in_uns(analyzed_muscle):
+    """condition_labels should be a sequence of strings."""
+    cl = analyzed_muscle.uns.get("condition_labels")
+    assert cl is not None
+    assert len(cl) > 0
+    assert all(isinstance(str(v), str) for v in cl)
+
+def test_kruskal_dominant_condition_column(analyzed_muscle):
+    """Kruskal enrichment should produce a dominant_condition column."""
+    adata = analyzed_muscle.copy()
+    results = kruskal.calculate_enrichment(adata, "Hours")
+    assert "dominant_condition" in results.columns
+    # Every factor should have a dominant condition string
+    assert all(isinstance(v, str) for v in results["dominant_condition"])
+
+def test_perm_dominant_condition_column(analyzed_muscle):
+    """Perm enrichment should rename max_P to dominant_condition."""
+    adata = analyzed_muscle.copy()
+    perm.calculate_enrichment(adata, "Hours", ['factor.9'], 10, "gene_short_name", 0.1)
+    df = perm.get_df_loadings(adata)
+    assert "dominant_condition" in df.columns
+    assert "max_P" not in df.columns
+
+def test_output_results_dominant_condition(analyzed_muscle):
+    """output_results should include dominant_condition column."""
+    adata = analyzed_muscle.copy()
+    # Without enrichment — Fs-based fallback
+    for key in ['enrichment_results', 'enrichment_stats']:
+        adata.uns.pop(key, None)
+    result = utils.output_results(adata)
+    assert "dominant_condition" in result.columns
+
+def test_output_results_enrichment_dominant_condition(analyzed_muscle):
+    """When enrichment has dominant_condition, it should override Fs-based."""
+    adata = analyzed_muscle.copy()
+    kruskal.calculate_enrichment(adata, "Hours")
+    result = utils.output_results(adata)
+    assert "dominant_condition" in result.columns
