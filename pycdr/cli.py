@@ -569,3 +569,95 @@ def run(input, phenotype, output, csv, capvar, pernum, thres,
 
         generate_html_report(adata, report_path, phenotype)
         click.echo(f"Wrote {report_path}")
+
+
+# ---------------------------------------------------------------------------
+# demo
+# ---------------------------------------------------------------------------
+
+@cli.command()
+@click.option("-o", "--output-dir", default="./pycdr_demo",
+              show_default=True, help="Directory for demo output files.")
+def demo(output_dir):
+    """Run an end-to-end example on bundled test data."""
+    import anndata as ad
+
+    from .utils import filter_genecounts_numcells, output_results
+    from .pycdr import run_CDR_analysis
+    from .kruskal import calculate_enrichment as calc_kruskal
+    from .reporting import generate_html_report, format_run_summary
+
+    click.echo("pycdr demo: running end-to-end example...\n")
+
+    # 1. Create output directory
+    outdir = Path(output_dir)
+    outdir.mkdir(parents=True, exist_ok=True)
+
+    # 2. Load bundled test data
+    data_path = Path(__file__).parent / "data" / "test_muscle.h5ad"
+    adata = ad.read_h5ad(str(data_path))
+    phenotype = "Hours"
+
+    n_cells, n_genes = adata.shape
+    click.echo(f"Dataset: {n_cells} cells x {n_genes} genes (muscle differentiation time-course)")
+    groups = sorted(adata.obs[phenotype].unique().tolist(), key=str)
+    click.echo(f"Phenotype: '{phenotype}' ({', '.join(str(g) for g in groups)})\n")
+
+    # 3. Filter genes
+    click.echo("Filtering genes...")
+    adata = filter_genecounts_numcells(adata, count_threshold=1, min_expressed_cells=10)
+    click.echo(f"  After filtering: {adata.shape[0]} cells x {adata.shape[1]} genes")
+
+    # 4. CDR-g analysis
+    click.echo("Running CDR-g analysis...")
+    run_CDR_analysis(adata, phenotype, pernum=500)
+    n_factors = len(adata.uns["factor_loadings"])
+    click.echo(f"  {n_factors} factors identified")
+
+    # 5. Kruskal-Wallis enrichment
+    click.echo("Running Kruskal-Wallis enrichment...")
+    calc_kruskal(adata, phenotype)
+    click.echo("  Enrichment complete\n")
+
+    # Store params for the report
+    adata.uns["cdr_params"] = {
+        "phenotype": phenotype,
+        "capvar": 0.95,
+        "pernum": 500,
+        "thres": 0.05,
+        "filter_method": "numcells",
+        "count_threshold": 1,
+        "min_cells": 10,
+        "enrich_method": "kruskal",
+    }
+
+    # 6. Save analyzed.h5ad + results.csv
+    h5ad_path = outdir / "analyzed.h5ad"
+    adata.write(str(h5ad_path))
+
+    csv_path = outdir / "results.csv"
+    df = output_results(adata)
+    if df is not None:
+        _serialize_genes_column(df).to_csv(str(csv_path), index=False)
+
+    # 7. HTML report
+    report_path = outdir / "report.html"
+    generate_html_report(adata, str(report_path), phenotype)
+
+    # 8. Summary plot (optional)
+    png_path = outdir / "summary.png"
+    try:
+        from .plotting import plot_summary
+        plot_summary(adata, str(png_path))
+        plot_ok = True
+    except ImportError:
+        plot_ok = False
+
+    # 9. Print summary
+    click.echo(f"Results written to {output_dir}/")
+    click.echo(f"  analyzed.h5ad    — annotated dataset with CDR-g results")
+    click.echo(f"  results.csv      — factor summary table")
+    click.echo(f"  report.html      — HTML report")
+    if plot_ok:
+        click.echo(f"  summary.png      — summary figure")
+    click.echo(f"\nOpen report.html in a browser to explore the results.")

@@ -387,6 +387,39 @@ def test_subset_bad_format(runner, muscle_path):
     assert "Invalid subset format" in result.output
 
 
+# ---------------------------------------------------------------------------
+# demo
+# ---------------------------------------------------------------------------
+
+def test_demo(runner, tmp_path_factory):
+    outdir = str(tmp_path_factory.mktemp("cli_demo") / "demo_out")
+    result = runner.invoke(cli, ["demo", "--output-dir", outdir])
+    assert result.exit_code == 0, result.output
+    assert "pycdr demo: running end-to-end example" in result.output
+    assert "Filtering genes" in result.output
+    assert "factors identified" in result.output
+    assert "Enrichment complete" in result.output
+    assert "Results written to" in result.output
+
+    out = Path(outdir)
+    assert (out / "analyzed.h5ad").exists()
+    assert (out / "results.csv").exists()
+    assert (out / "report.html").exists()
+
+    # Verify the HTML report is valid
+    content = (out / "report.html").read_text()
+    assert "<html" in content
+
+
+def test_demo_default_output_dir(runner, tmp_path_factory, monkeypatch):
+    """Demo with default output dir (./pycdr_demo/)."""
+    workdir = tmp_path_factory.mktemp("cli_demo_default")
+    monkeypatch.chdir(workdir)
+    result = runner.invoke(cli, ["demo"])
+    assert result.exit_code == 0, result.output
+    assert (workdir / "pycdr_demo" / "analyzed.h5ad").exists()
+
+
 def test_filter_with_subset(runner, muscle_path, tmp_path_factory):
     out = str(tmp_path_factory.mktemp("cli_subset_filter") / "filt.h5ad")
     result = runner.invoke(cli, [
