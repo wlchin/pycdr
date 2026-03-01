@@ -92,7 +92,12 @@ def calculate_kruskal_wallis_all_sets(enrichment_df, pheno_ser):
 
     res = pd.DataFrame.from_dict(results, orient='index')
     res.columns = ["stat", "pval", "dominant_condition"]
-    res["fdr"] = fdrcorrection(res["pval"])[1]
+    valid = res["pval"].dropna()
+    if len(valid) > 0:
+        _, fdr_values = fdrcorrection(valid)
+        res["fdr"] = pd.Series(fdr_values, index=valid.index)
+    else:
+        res["fdr"] = np.nan
     res_sorted = res.sort_values(['stat', 'fdr'], ascending=[False, True])
 
     return res_sorted
