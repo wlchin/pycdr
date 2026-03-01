@@ -317,3 +317,62 @@ def test_output_results_enrichment_dominant_condition(analyzed_muscle):
     kruskal.calculate_enrichment(adata, "Hours")
     result = utils.output_results(adata)
     assert "dominant_condition" in result.columns
+
+
+# --- G. Memory-safety tests for iterative permutation ---
+
+from pycdr import feature_selection
+
+def test_select_modules_memory_safe():
+    """select_modules should complete without OOM on moderately large inputs.
+
+    Old batch code would allocate 100 * 10000 * 20 * 8 = 160 MB as an
+    intermediate.  The iterative version uses ~1.6 MB per iteration.
+    """
+    rng = np.random.default_rng(99)
+    nfacs = 2
+    rows_per_split = 5000
+    n_rows = nfacs * rows_per_split  # 10000
+    n_cols = 20
+    Fs = rng.standard_normal((n_rows, n_cols))
+
+    adata = ad.AnnData(np.zeros((rows_per_split, n_cols)))
+    adata.uns["Fs"] = Fs
+
+    selection, pval_mat, z_score_mat = feature_selection.select_modules(
+        adata, nperm=100, thresh=0.05, nfacs=nfacs
+    )
+
+    assert pval_mat.shape == (rows_per_split, n_cols)
+    assert z_score_mat.shape == (rows_per_split, n_cols)
+    assert selection.shape == (rows_per_split, n_cols)
+    assert np.all((pval_mat >= 0) & (pval_mat <= 1))
+
+
+def test_permute_matrix_memory_safe():
+    """permute_matrix should complete without OOM on moderately large inputs.
+
+    Old batch code would allocate 50 * 5000 * 2000 * 8 = 4 GB as an
+    intermediate.  The iterative version uses ~8 MB per iteration.
+    """
+    rng = np.random.default_rng(99)
+    n_genes = 5000
+    n_cells = 2000
+    arrrank = rng.random((n_genes, n_cells))
+
+    gene_names = [f"gene_{i}" for i in range(n_genes)]
+    factor_genes = gene_names[:500]
+
+    adata = ad.AnnData(
+        np.zeros((n_cells, n_genes)),
+        var=pd.DataFrame({"gene_name": gene_names}, index=gene_names),
+    )
+    adata.uns["factor_loadings"] = {"test_factor": factor_genes}
+
+    pmat, matreal = perm.permute_matrix(
+        adata, arrrank, "test_factor", nperm=50, genecol="gene_name"
+    )
+
+    assert pmat.shape == (n_cells,)
+    assert matreal.shape == (n_cells,)
+    assert np.all((pmat >= 0) & (pmat <= 1))

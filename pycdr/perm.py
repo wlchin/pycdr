@@ -42,13 +42,13 @@ def permute_matrix(adata, arrrank, factor, nperm, genecol, seed = 42):
     matreal = (arrrank[ind].mean(0)/genelength) - 0.5
 
     rng = np.random.default_rng(seed)
-    # Batch: generate all permutation indices at once
-    all_perm_idx = np.array([rng.permutation(genelength) for _ in range(nperm)])
-    # (nperm, genelength, n_cells) -> select rows matching ind -> mean
-    all_permuted = arrrank[all_perm_idx][:, ind, :]
-    mato = (all_permuted.mean(axis=1) / genelength) - 0.5
-
-    pmat = (nperm - np.sum(matreal > mato, 0))/nperm
+    n_cells = arrrank.shape[1]
+    count = np.zeros(n_cells)
+    for _ in range(nperm):
+        perm_idx = rng.permutation(genelength)
+        mato_i = (arrrank[perm_idx[ind]].mean(0) / genelength) - 0.5
+        count += (matreal > mato_i)
+    pmat = (nperm - count) / nperm
 
     return pmat, matreal
 
