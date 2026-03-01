@@ -10,22 +10,17 @@ jobs:
     steps:
       - checkout
       - run:
-          name: update pip pipenv
-          command: pip install --upgrade pip setuptools wheel
+          name: Install uv
+          command: pip install uv
       - run:
-          name: install pytest cov
-          command: pip install pytest-cov
-      - python/install-packages:
-          pkg-manager: pip
-      - run:
-          name: Run tests
-          command: pytest
+          name: Install package and test deps
+          command: uv pip install --system -e ".[test]"
       - run:
           name: Run tests and collect coverage
           command: pytest --cov .
       - codecov/upload
 
 workflows:
-  sample: 
+  sample:
     jobs:
       - build-and-test
