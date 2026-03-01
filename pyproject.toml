@@ -20,7 +20,11 @@ dependencies = [
     "pandas>=1.5",
     "numpy>=1.24",
     "statsmodels>=0.14",
+    "click>=8.0",
 ]
+
+[project.scripts]
+pycdr = "pycdr.cli:cli"
 
 [project.urls]
 Homepage = "https://github.com/wlchin/pycdr"
