@@ -1,5 +1,5 @@
-﻿pycdr.perm.calculate\_enrichment
-================================
+pycdr.perm.calculate\_enrichment (Legacy)
+==========================================
 
 .. currentmodule:: pycdr.perm
 
