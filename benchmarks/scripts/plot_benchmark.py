@@ -1,4 +1,4 @@
-"""Generate 3-panel benchmark scaling figure."""
+"""Generate 2x3-panel benchmark scaling figure (timing + memory)."""
 
 import numpy as np
 import pandas as pd
@@ -15,10 +15,12 @@ def plot_benchmark(summary_path, output_path):
     genes_vals = sorted(median["n_genes"].unique())
     cells_vals = sorted(median["n_cells"].unique())
 
-    fig, axes = plt.subplots(1, 3, figsize=(16, 5))
+    fig, axes = plt.subplots(2, 3, figsize=(16, 10))
+
+    # ===================== TOP ROW: TIMING =====================
 
     # --- Panel A: Heatmap of median total time ---
-    ax = axes[0]
+    ax = axes[0, 0]
     pivot = median.pivot(index="n_genes", columns="n_cells", values="total_time_s")
     pivot = pivot.reindex(index=genes_vals, columns=cells_vals)
 
@@ -48,7 +50,7 @@ def plot_benchmark(summary_path, output_path):
     fig.colorbar(im, ax=ax, label="seconds")
 
     # --- Panel B: Line plot of median time vs n_genes ---
-    ax = axes[1]
+    ax = axes[0, 1]
     for nc in cells_vals:
         sub = median[median["n_cells"] == nc].sort_values("n_genes")
         ax.plot(sub["n_genes"], sub["total_time_s"], marker="o", label=f"{nc} cells")
@@ -61,7 +63,7 @@ def plot_benchmark(summary_path, output_path):
     ax.grid(True, alpha=0.3)
 
     # --- Panel C: Stacked bars SVD vs permutation at largest n_cells ---
-    ax = axes[2]
+    ax = axes[0, 2]
     max_cells = max(cells_vals)
     sub = median[median["n_cells"] == max_cells].sort_values("n_genes")
 
@@ -76,6 +78,68 @@ def plot_benchmark(summary_path, output_path):
     ax.set_xlabel("n_genes")
     ax.set_ylabel("Median time (s)")
     ax.set_title(f"C) Phase breakdown (n_cells={max_cells})")
+    ax.legend()
+    ax.grid(True, alpha=0.3, axis="y")
+
+    # ===================== BOTTOM ROW: MEMORY =====================
+
+    # --- Panel D: Memory heatmap (peak RSS) ---
+    ax = axes[1, 0]
+    pivot_mem = median.pivot(index="n_genes", columns="n_cells", values="peak_rss_mb")
+    pivot_mem = pivot_mem.reindex(index=genes_vals, columns=cells_vals)
+
+    mem_vmin = max(pivot_mem.values.min(), 1)
+    mem_vmax = pivot_mem.values.max()
+    im_mem = ax.imshow(
+        pivot_mem.values,
+        norm=LogNorm(vmin=mem_vmin, vmax=mem_vmax),
+        cmap="YlGnBu",
+        aspect="auto",
+    )
+    ax.set_xticks(range(len(cells_vals)))
+    ax.set_xticklabels(cells_vals)
+    ax.set_yticks(range(len(genes_vals)))
+    ax.set_yticklabels(genes_vals)
+    ax.set_xlabel("n_cells")
+    ax.set_ylabel("n_genes")
+    ax.set_title("D) Median peak RSS (MB)")
+
+    for i in range(len(genes_vals)):
+        for j in range(len(cells_vals)):
+            val = pivot_mem.values[i, j]
+            ax.text(j, i, f"{val:.0f}", ha="center", va="center", fontsize=8,
+                    color="white" if val > mem_vmax * 0.3 else "black")
+
+    fig.colorbar(im_mem, ax=ax, label="MB")
+
+    # --- Panel E: Memory scaling lines (peak RSS vs n_genes) ---
+    ax = axes[1, 1]
+    for nc in cells_vals:
+        sub = median[median["n_cells"] == nc].sort_values("n_genes")
+        ax.plot(sub["n_genes"], sub["peak_rss_mb"], marker="o", label=f"{nc} cells")
+
+    ax.set_yscale("log")
+    ax.set_xlabel("n_genes")
+    ax.set_ylabel("Median peak RSS (MB)")
+    ax.set_title("E) Memory scaling with gene count")
+    ax.legend(title="n_cells")
+    ax.grid(True, alpha=0.3)
+
+    # --- Panel F: Phase memory breakdown (stacked bars at largest n_cells) ---
+    ax = axes[1, 2]
+    sub = median[median["n_cells"] == max_cells].sort_values("n_genes")
+
+    x = np.arange(len(sub))
+    width = 0.6
+    ax.bar(x, sub["svd_rss_delta_mb"], width, label="SVD", color="#4C72B0")
+    ax.bar(x, sub["perm_rss_delta_mb"], width, bottom=sub["svd_rss_delta_mb"],
+           label="Permutation", color="#DD8452")
+
+    ax.set_xticks(x)
+    ax.set_xticklabels(sub["n_genes"].astype(int))
+    ax.set_xlabel("n_genes")
+    ax.set_ylabel("Median RSS delta (MB)")
+    ax.set_title(f"F) Phase memory breakdown (n_cells={max_cells})")
     ax.legend()
     ax.grid(True, alpha=0.3, axis="y")
 
