@@ -1,4 +1,4 @@
-[![wlchin](https://circleci.com/gh/wlchin/pycdr.svg?style=svg)](https://circleci.com/gh/circleci/circleci-docs) [![codecov](https://codecov.io/gh/wlchin/pycdr/branch/main/graph/badge.svg?token=4QIR3F7PSG)](https://codecov.io/gh/wlchin/pycdr)
+[![Tests](https://github.com/wlchin/pycdr/actions/workflows/test.yml/badge.svg)](https://github.com/wlchin/pycdr/actions/workflows/test.yml) [![Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen)](https://github.com/wlchin/pycdr/actions/workflows/test.yml)
 
 
 # CDR-g (CDR-genomics)
@@ -20,6 +20,74 @@ The basic workflow is demonstrated below. As input, CDR-g requires a pre-prepare
 
 	run_CDR_analysis(anndata_object, condition_of_interest)
 	calculate_enrichment(anndata_object)
+
+# Command-line interface
+
+After installation, the `pycdr` CLI is available. It wraps the full CDR-g pipeline so you can run analyses directly from the terminal without writing Python code.
+
+```
+pycdr --help
+```
+
+## Commands
+
+| Command | Description |
+|---------|-------------|
+| `pycdr run` | Full pipeline (filter + analyze + enrich + export) |
+| `pycdr analyze` | Run CDR-g SVD/varimax analysis only |
+| `pycdr filter` | Filter genes from an .h5ad file |
+| `pycdr enrich` | Run enrichment on previously analyzed data |
+| `pycdr results` | Export results table to CSV/TSV or stdout |
+| `pycdr info` | Display dataset metadata |
+
+## Quick start
+
+```bash
+# Minimal — run CDR-g analysis
+pycdr run data.h5ad -p stim
+
+# With gene filtering and enrichment
+pycdr run data.h5ad -p stim -o results.h5ad -c results.csv \
+  --filter-method numcells --min-cells 25 \
+  --enrich --genecol gene_short_name
+
+# Inspect a dataset
+pycdr info data.h5ad -p stim
+
+# Export top genes for a specific factor
+pycdr results analyzed.h5ad --top-genes 20 --factor 3
+
+# Re-run enrichment with different parameters
+pycdr enrich analyzed.h5ad -p stim -m kruskal -o enriched.h5ad
+```
+
+## `pycdr run` options
+
+```
+Usage: pycdr run [OPTIONS] INPUT
+
+Options:
+  -p, --phenotype TEXT            Condition column in adata.obs [required]
+  -o, --output TEXT               Output .h5ad path [default: {stem}_cdr.h5ad]
+  -c, --csv TEXT                  Export results CSV
+  --capvar FLOAT                  Variance threshold [default: 0.95]
+  --pernum INTEGER                Permutations for importance [default: 2000]
+  --thres FLOAT                   P-value threshold [default: 0.05]
+  --filter-method [none|percent|numcells]
+                                  Gene filter method [default: none]
+  --cell-fraction FLOAT           (percent) fraction of cells [default: 0.05]
+  --median-count FLOAT            (percent) median count threshold [default: 1.0]
+  --count-threshold INTEGER       (numcells) count cutoff [default: 1]
+  --min-cells INTEGER             (numcells) min expressed cells [default: 10]
+  --enrich / --no-enrich          Run enrichment [default: no-enrich]
+  --enrich-method [perm|kruskal]  Enrichment method [default: perm]
+  --genecol TEXT                  Gene name column in adata.var
+  --nperm INTEGER                 Permutations for ssGSEA [default: 100]
+  --enrich-thresh FLOAT           Active gene set threshold [default: 0.05]
+  --seed INTEGER                  Random seed [default: 42]
+  -v, --verbose                   Increase verbosity (-v INFO, -vv DEBUG)
+  -q, --quiet                     Errors only
+```
 
 # Example workflows
 
