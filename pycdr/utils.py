@@ -2,6 +2,22 @@ import logging
 import numpy as np
 import scipy.sparse as ss
 import pandas as pd
+from scipy.stats import rankdata
+
+
+def create_rank_matrix(X):
+    """Create a gene-by-cell ranking matrix for ssGSEA scoring.
+
+    Args:
+        X (array): Expression matrix (cells x genes), can be sparse or dense.
+
+    Returns:
+        numpy.ndarray: Ranking matrix of shape (n_genes, n_cells).
+    """
+    arr = X
+    if ss.issparse(arr):
+        arr = arr.toarray()
+    return rankdata(arr.T, axis=0, method="min")
 
 
 def filter_genecounts_percent(adata, cell_fraction, median_count_above_zero):
@@ -87,51 +103,70 @@ def get_top_genes(adata, i):
 def output_results(adata):
     """Extract and combine CDR-g results into a single DataFrame.
 
-    Collects factor loading gene lists, optional enrichment terms, and
-    optional enrichment statistics (from ``adata.uns["enrichment_stats"]``)
-    into a combined table.
+    Collects factor loading gene lists (ranked by z-score), gene counts,
+    optional enrichment terms, and optional enrichment statistics into a
+    combined table.
 
     Args:
         adata (anndata.AnnData): AnnData object after ``run_CDR_analysis``
             and optionally ``calculate_enrichment``.
 
     Returns:
-        pandas.DataFrame: Combined results indexed by factor name, or ``None``
-            if no CDR-g analysis results are found.
+        pandas.DataFrame: Combined results indexed by factor name with columns
+            ``n_genes``, ``genes`` (list), ``top_genes`` (str), and optionally
+            enrichment columns. Returns ``None`` if no CDR-g analysis found.
     """
-    enrichment = False
-    stats = False
-
-    try:
-        dict_variable = {key:",".join(value) for (key,value) in adata.uns["factor_loadings"].items()}
-        genes = pd.DataFrame.from_dict(dict_variable, orient='index', columns=['genes'])
-    except KeyError:
+    factor_loadings = adata.uns.get("factor_loadings")
+    if factor_loadings is None:
         logging.getLogger(__name__).warning("No CDR-g analysis identified. Have you run the pipeline?")
         return None
 
-    try:
-        dict_variable = {key:",".join(value) for (key,value) in adata.uns["enrichment_results"].items()}
-        terms = pd.DataFrame.from_dict(dict_variable, orient='index', columns=['terms'])
-        enrichment = True
-    except KeyError:
-        logging.getLogger(__name__).info("No enrichment results provided. Run enrichment_utils if required.")
+    zscores = adata.uns.get("zscores")
+    gene_names = adata.var_names.tolist()
+    gene_to_idx = {g: i for i, g in enumerate(gene_names)}
 
-    try:
-        df_stats = adata.uns["enrichment_stats"]
-        stats = True
-    except KeyError:
-        logging.getLogger(__name__).info("No enrichment stats calculated. Run if required.")
+    rows = {}
+    for fname, gene_list in factor_loadings.items():
+        # Rank genes by z-score within this factor
+        ranked_genes = list(gene_list)  # copy
+        try:
+            fi = int(fname.split(".")[-1])
+        except (ValueError, IndexError):
+            fi = None
 
-    if not enrichment and stats:
-        df = pd.concat([genes, df_stats], join='inner', axis = 1)
+        if zscores is not None and fi is not None and fi < zscores.shape[1] and len(ranked_genes) > 0:
+            # Sort by z-score descending
+            def _zscore(g):
+                idx = gene_to_idx.get(g)
+                if idx is not None and idx < zscores.shape[0]:
+                    return zscores[idx, fi]
+                return 0.0
+            ranked_genes.sort(key=_zscore, reverse=True)
 
-    if enrichment and not stats:
-        df = pd.concat([genes, terms], join='inner', axis = 1)
+        top5 = ranked_genes[:5]
+        rows[fname] = {
+            "n_genes": len(ranked_genes),
+            "genes": ranked_genes,
+            "top_genes": ", ".join(top5),
+        }
 
-    if not enrichment and not stats:
-        df = genes
+    df = pd.DataFrame.from_dict(rows, orient="index")
 
-    if enrichment and stats:
-        df = pd.concat([genes, terms, df_stats], join='inner', axis = 1)
+    # Join enrichment terms if available
+    enrich_results = adata.uns.get("enrichment_results")
+    if enrich_results is not None:
+        terms_dict = {
+            key: ", ".join(value)
+            for key, value in enrich_results.items()
+        }
+        terms_df = pd.DataFrame.from_dict(
+            terms_dict, orient="index", columns=["terms"]
+        )
+        df = pd.concat([df, terms_df], join="inner", axis=1)
+
+    # Join enrichment stats if available
+    enrich_stats = adata.uns.get("enrichment_stats")
+    if enrich_stats is not None and isinstance(enrich_stats, pd.DataFrame):
+        df = pd.concat([df, enrich_stats], join="inner", axis=1)
 
     return df

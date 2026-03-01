@@ -3,7 +3,7 @@
 __version__ = "0.0.3"
 
 from .pycdr import run_CDR_analysis
-from .experimental import calculate_enrichment, binarize_gset_on_adata
+from .kruskal import calculate_enrichment, binarize_gset_on_adata
 from .utils import (
     filter_genecounts_percent,
     filter_genecounts_numcells,

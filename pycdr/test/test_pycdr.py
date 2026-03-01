@@ -10,7 +10,7 @@ import anndata as ad
 from pathlib import Path
 from pycdr import perm
 from pycdr import utils
-from pycdr import experimental
+from pycdr import kruskal
 
 @pytest.fixture(scope='module')
 def muscleobject():
@@ -49,7 +49,15 @@ def sparse_muscle(muscleobject):
 def test_output_function(muscleobjectoutput):
     x = utils.output_results(muscleobjectoutput)
     assert x is not None
-    assert x.shape[0] == 1749
+    # New structure: one row per factor (not per gene)
+    n_factors = len(muscleobjectoutput.uns["factor_loadings"])
+    assert x.shape[0] == n_factors
+    assert "n_genes" in x.columns
+    assert "genes" in x.columns
+    assert "top_genes" in x.columns
+    # genes column should contain lists
+    for val in x["genes"]:
+        assert isinstance(val, list)
 
 def test_CDR_muscle_adata_shape(analyzed_muscle):
     assert analyzed_muscle.shape[0] == 100
@@ -161,15 +169,21 @@ def test_output_genes_only(analyzed_muscle):
     result = utils.output_results(adata)
     assert result is not None
     assert 'genes' in result.columns
+    assert 'n_genes' in result.columns
+    assert 'top_genes' in result.columns
+    # genes column should contain lists
+    for val in result["genes"]:
+        assert isinstance(val, list)
 
 def test_output_genes_and_stats(analyzed_muscle):
     adata = analyzed_muscle.copy()
-    experimental.calculate_enrichment(adata, "Hours")
+    kruskal.calculate_enrichment(adata, "Hours")
     adata.uns.pop('enrichment_results', None)
     result = utils.output_results(adata)
     assert result is not None
     assert 'genes' in result.columns
     assert 'fdr' in result.columns
+    assert 'n_genes' in result.columns
 
 def test_output_with_enrichment_no_stats(analyzed_muscle):
     adata = analyzed_muscle.copy()
@@ -184,27 +198,27 @@ def test_output_with_enrichment_no_stats(analyzed_muscle):
     assert 'terms' in result.columns
 
 
-# --- D. experimental.py (all 74 lines) ---
+# --- D. kruskal.py (all 74 lines) ---
 
 def test_exp_create_rank_matrix(analyzed_muscle):
-    arrrank = experimental.create_rank_matrix(analyzed_muscle.X)
+    arrrank = kruskal.create_rank_matrix(analyzed_muscle.X)
     assert arrrank.shape == (analyzed_muscle.shape[1], analyzed_muscle.shape[0])
 
 def test_exp_create_rank_matrix_sparse(sparse_muscle):
-    arrrank_sparse = experimental.create_rank_matrix(sparse_muscle.X)
-    arrrank_dense = experimental.create_rank_matrix(sparse_muscle.X.toarray())
+    arrrank_sparse = kruskal.create_rank_matrix(sparse_muscle.X)
+    arrrank_dense = kruskal.create_rank_matrix(sparse_muscle.X.toarray())
     np.testing.assert_array_equal(arrrank_sparse, arrrank_dense)
 
 def test_exp_single_geneset(analyzed_muscle):
-    arrrank = experimental.create_rank_matrix(analyzed_muscle.X)
+    arrrank = kruskal.create_rank_matrix(analyzed_muscle.X)
     arr_index = analyzed_muscle.var.index
     geneset = analyzed_muscle.uns['factor_loadings']['factor.9']
-    result = experimental.calculate_enrichment_single_geneset(geneset, arr_index, arrrank)
+    result = kruskal.calculate_enrichment_single_geneset(geneset, arr_index, arrrank)
     assert result.shape == (analyzed_muscle.shape[0],)
 
 def test_exp_calculate_enrichment(analyzed_muscle):
     adata = analyzed_muscle.copy()
-    results = experimental.calculate_enrichment(adata, "Hours")
+    results = kruskal.calculate_enrichment(adata, "Hours")
     assert isinstance(results, pd.DataFrame)
     assert 'stat' in results.columns
     assert 'pval' in results.columns
@@ -214,10 +228,10 @@ def test_exp_calculate_enrichment(analyzed_muscle):
     assert 'enrichment_stats' in adata.uns
 
 def test_exp_binarize_gset(analyzed_muscle):
-    arrrank = experimental.create_rank_matrix(analyzed_muscle.X)
+    arrrank = kruskal.create_rank_matrix(analyzed_muscle.X)
     arr_index = analyzed_muscle.var.index
     geneset = analyzed_muscle.uns['factor_loadings']['factor.9']
-    pmat, matreal, active_cells = experimental.binarize_gset(arrrank, arr_index, geneset, nperm=10)
+    pmat, matreal, active_cells = kruskal.binarize_gset(arrrank, arr_index, geneset, nperm=10)
     assert pmat.shape == (analyzed_muscle.shape[0],)
     assert matreal.shape == (analyzed_muscle.shape[0],)
     assert active_cells.dtype == bool
@@ -228,7 +242,27 @@ def test_exp_binarize_on_adata(analyzed_muscle):
     if ss.issparse(adata.X):
         adata.X = adata.X.toarray()
     factor_list = ['factor.9', 'factor.2']
-    result = experimental.binarize_gset_on_adata(adata, factor_list, nperm=10)
+    result = kruskal.binarize_gset_on_adata(adata, factor_list, nperm=10)
     assert result is not None
     assert result.shape == (adata.shape[0], 2)
     assert result.dtype == bool
+
+
+# --- E. Shared create_rank_matrix and perm enrichment_stats ---
+
+def test_utils_create_rank_matrix(analyzed_muscle):
+    from pycdr.utils import create_rank_matrix
+    arrrank = create_rank_matrix(analyzed_muscle.X)
+    assert arrrank.shape == (analyzed_muscle.shape[1], analyzed_muscle.shape[0])
+    # Verify it matches the kruskal module's (now delegated) version
+    np.testing.assert_array_equal(arrrank, kruskal.create_rank_matrix(analyzed_muscle.X))
+
+def test_perm_enrichment_stores_stats(analyzed_muscle):
+    adata = analyzed_muscle.copy()
+    perm.calculate_enrichment(adata, "Hours", ['factor.9'], 10, "gene_short_name", 0.1)
+    assert 'enrichment_stats' in adata.uns
+    df = adata.uns["enrichment_stats"]
+    assert isinstance(df, pd.DataFrame)
+    # output_results should work without error
+    result = utils.output_results(adata)
+    assert result is not None

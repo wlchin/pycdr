@@ -66,7 +66,7 @@ def _setup_logging(verbose, quiet):
     root.setLevel(level)
     # Also set level on library sub-loggers so their messages propagate
     for name in ("pycdr.pycdr", "pycdr.perm", "pycdr.utils",
-                 "pycdr.feature_selection", "pycdr.experimental"):
+                 "pycdr.feature_selection", "pycdr.kruskal"):
         logging.getLogger(name).setLevel(level)
 
 
@@ -82,6 +82,16 @@ def _read_h5ad(path):
             f"Expected .h5ad file, got '{p.suffix}'", param_hint="'INPUT'"
         )
     return ad.read_h5ad(str(p))
+
+
+def _serialize_genes_column(df):
+    """Serialize the ``genes`` list column to comma-joined strings for CSV export."""
+    out = df.copy()
+    if "genes" in out.columns:
+        out["genes"] = out["genes"].apply(
+            lambda x: ",".join(x) if isinstance(x, list) else str(x)
+        )
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -103,21 +113,23 @@ def cli():
 @click.option("-p", "--phenotype", default=None, help="Show value counts for this obs column.")
 def info(input, phenotype):
     """Display dataset metadata."""
+    from .reporting import format_info_summary
+
     adata = _read_h5ad(input)
 
     click.echo(f"Shape: {adata.shape[0]} cells x {adata.shape[1]} genes")
-
-    if "factor_loadings" in adata.uns:
-        n = len(adata.uns["factor_loadings"])
-        click.echo(f"CDR-g analysis: found ({n} factors)")
-    else:
-        click.echo("CDR-g analysis: not found")
 
     if phenotype is not None:
         validate_phenotype(adata, phenotype)
         counts = adata.obs[phenotype].value_counts()
         parts = ", ".join(f"{k}={v}" for k, v in counts.items())
         click.echo(f"Phenotype '{phenotype}': {parts}")
+
+    summary = format_info_summary(adata)
+    if summary is not None:
+        click.echo(summary)
+    else:
+        click.echo("CDR-g analysis: not found")
 
 
 # ---------------------------------------------------------------------------
@@ -137,12 +149,17 @@ def analyze(input, phenotype, output, capvar, pernum, thres, verbose, quiet):
     """Run CDR-g SVD/varimax analysis."""
     _setup_logging(verbose, quiet)
     from .pycdr import run_CDR_analysis
+    from .reporting import format_run_summary
 
     adata = _read_h5ad(input)
     validate_phenotype(adata, phenotype)
 
     logger.info("Running CDR-g analysis on %s", input)
     run_CDR_analysis(adata, phenotype, capvar=capvar, pernum=pernum, thres=thres)
+
+    n_factors = len(adata.uns["factor_loadings"])
+    click.echo(f"CDR-g analysis complete: {n_factors} factors")
+    click.echo(format_run_summary(adata, phenotype))
 
     out = output or default_output(input)
     adata.write(out)
@@ -239,7 +256,7 @@ def enrich(input, phenotype, enrich_method, genecol, nperm, enrich_thresh,
         logger.info("Running perm enrichment (%d factors, nperm=%d)", len(factor_list), nperm)
         calculate_enrichment(adata, phenotype, factor_list, nperm, genecol, enrich_thresh, seed=seed)
     else:
-        from .experimental import calculate_enrichment as calc_kruskal
+        from .kruskal import calculate_enrichment as calc_kruskal
 
         logger.info("Running Kruskal-Wallis enrichment (%d factors)", len(factor_list))
         calc_kruskal(adata, phenotype)
@@ -252,7 +269,7 @@ def enrich(input, phenotype, enrich_method, genecol, nperm, enrich_thresh,
         from .utils import output_results
         df = output_results(adata)
         if df is not None:
-            df.to_csv(csv, index=False)
+            _serialize_genes_column(df).to_csv(csv, index=False)
             click.echo(f"Wrote {csv}")
 
 
@@ -264,15 +281,16 @@ def enrich(input, phenotype, enrich_method, genecol, nperm, enrich_thresh,
 @click.argument("input", type=click.Path(exists=True))
 @click.option("-o", "--output", default=None, help="Output file (CSV/TSV). Stdout if omitted.")
 @click.option("-f", "--format", "fmt", default="csv", show_default=True,
-              type=click.Choice(["csv", "tsv"]), help="Output format.")
+              type=click.Choice(["csv", "tsv", "table", "markdown"]), help="Output format.")
 @click.option("--top-genes", default=None, type=int, help="Show top N genes per factor.")
 @click.option("--factor", default=None, type=int, help="Show results for a single factor index.")
 @click.option("-v", "--verbose", count=True)
 @click.option("-q", "--quiet", is_flag=True)
 def results(input, output, fmt, top_genes, factor, verbose, quiet):
-    """Export results table to CSV/TSV or stdout."""
+    """Export results table to CSV/TSV/table/markdown or stdout."""
     _setup_logging(verbose, quiet)
     from .utils import output_results, get_top_genes
+    from .reporting import format_results_table
 
     adata = _read_h5ad(input)
     validate_analyzed(adata)
@@ -281,17 +299,75 @@ def results(input, output, fmt, top_genes, factor, verbose, quiet):
         df = get_top_genes(adata, factor)
         if top_genes is not None:
             df = df.head(top_genes)
-    else:
-        df = output_results(adata)
-        if df is None:
-            raise click.ClickException("No results to export.")
+        # Single-factor view always uses csv/tsv (no table/markdown)
+        sep = "\t" if fmt == "tsv" else ","
+        if output:
+            df.to_csv(output, sep=sep, index=True)
+            click.echo(f"Wrote {output}")
+        else:
+            click.echo(df.to_csv(sep=sep, index=True), nl=False)
+        return
 
-    sep = "\t" if fmt == "tsv" else ","
-    if output:
-        df.to_csv(output, sep=sep, index=(factor is not None))
-        click.echo(f"Wrote {output}")
+    df = output_results(adata)
+    if df is None:
+        raise click.ClickException("No results to export.")
+
+    if fmt in ("table", "markdown"):
+        click.echo(format_results_table(df, fmt=fmt), nl=False)
     else:
-        click.echo(df.to_csv(sep=sep, index=(factor is not None)), nl=False)
+        out_df = _serialize_genes_column(df)
+        sep = "\t" if fmt == "tsv" else ","
+        if output:
+            out_df.to_csv(output, sep=sep, index=False)
+            click.echo(f"Wrote {output}")
+        else:
+            click.echo(out_df.to_csv(sep=sep, index=False), nl=False)
+
+
+# ---------------------------------------------------------------------------
+# plot
+# ---------------------------------------------------------------------------
+
+@cli.command()
+@click.argument("input", type=click.Path(exists=True))
+@click.option("-o", "--output", default=None, help="Output image path (default: cdr_summary.png).")
+@click.option("--dpi", default=150, show_default=True, help="Figure DPI.")
+def plot(input, output, dpi):
+    """Generate a summary figure from CDR-g results."""
+    try:
+        from .plotting import plot_summary
+    except ImportError:
+        raise click.ClickException(
+            "matplotlib is required for plotting. Install with: pip install cdr-py[plot]"
+        )
+
+    adata = _read_h5ad(input)
+    validate_analyzed(adata)
+
+    out = output or default_output(input, suffix="_summary").replace(".h5ad", ".png")
+    plot_summary(adata, out, dpi=dpi)
+    click.echo(f"Wrote {out}")
+
+
+# ---------------------------------------------------------------------------
+# report
+# ---------------------------------------------------------------------------
+
+@cli.command()
+@click.argument("input", type=click.Path(exists=True))
+@click.option("-p", "--phenotype", required=True, help="Condition column in adata.obs.")
+@click.option("-o", "--output", default=None, help="Output HTML path.")
+def report(input, phenotype, output):
+    """Generate an HTML report from CDR-g results."""
+    from .reporting import generate_html_report
+
+    adata = _read_h5ad(input)
+    validate_phenotype(adata, phenotype)
+    validate_analyzed(adata)
+
+    out = output or default_output(input, suffix="_report").replace(".h5ad", ".html")
+    generate_html_report(adata, out, phenotype)
+    click.echo(f"Wrote {out}")
 
 
 # ---------------------------------------------------------------------------
@@ -330,6 +406,7 @@ def run(input, phenotype, output, csv, capvar, pernum, thres,
     from .pycdr import run_CDR_analysis
     from .utils import (filter_genecounts_percent, filter_genecounts_numcells,
                         output_results)
+    from .reporting import format_run_summary
 
     adata = _read_h5ad(input)
     validate_phenotype(adata, phenotype)
@@ -366,12 +443,15 @@ def run(input, phenotype, output, csv, capvar, pernum, thres,
             logger.info("Running perm enrichment")
             calculate_enrichment(adata, phenotype, factor_list, nperm, genecol, enrich_thresh, seed=seed)
         else:
-            from .experimental import calculate_enrichment as calc_kruskal
+            from .kruskal import calculate_enrichment as calc_kruskal
 
             logger.info("Running Kruskal-Wallis enrichment")
             calc_kruskal(adata, phenotype)
 
         click.echo("Enrichment complete")
+
+    # --- summary ---
+    click.echo(format_run_summary(adata, phenotype, enriched=enrich))
 
     # --- output ---
     out = output or default_output(input)
@@ -381,5 +461,5 @@ def run(input, phenotype, output, csv, capvar, pernum, thres,
     if csv:
         df = output_results(adata)
         if df is not None:
-            df.to_csv(csv, index=False)
+            _serialize_genes_column(df).to_csv(csv, index=False)
             click.echo(f"Wrote {csv}")

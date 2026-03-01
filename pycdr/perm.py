@@ -2,11 +2,11 @@ import logging
 
 import numpy as np
 import pandas as pd
-from scipy.stats import rankdata
 from statsmodels.stats.proportion import proportions_chisquare
 from statsmodels.stats.multitest import fdrcorrection
-import scipy
 import tqdm
+
+from .utils import create_rank_matrix as _create_rank_matrix
 
 logger = logging.getLogger(__name__)
 
@@ -19,11 +19,7 @@ def create_rank_matrix(adata):
     Returns:
         arrank: ranking matrix
     """
-    arr = adata.X
-    if scipy.sparse.issparse(arr):
-        arr = arr.toarray()
-    arrrank = rankdata(arr.T, axis = 0, method = "min")
-    return arrrank
+    return _create_rank_matrix(adata.X)
 
 def permute_matrix(adata, arrrank, factor, nperm, genecol, seed = 42):
     """Compute observed ssGSEA score and a permutation null for one factor.
@@ -126,6 +122,7 @@ def calculate_enrichment(adata, cols, factor_list, nperm, genecol, thresh, seed 
     adata.uns["dict_res_prop"] = dict_res_prop
     vals_p = {i:list(j[0:2]) for (i,j) in dict_res.items()} # this has problems
     adata.uns["pval_dict"] = vals_p
+    adata.uns["enrichment_stats"] = get_df_loadings(adata).set_index("factor_loading")
 
     return dict_res_prop, vals_p
 

@@ -1,26 +1,10 @@
 import numpy as np
-import scipy
 import pandas as pd
-from scipy.stats import rankdata
 from scipy import stats
 from statsmodels.stats.multitest import fdrcorrection
 import tqdm
 
-
-def create_rank_matrix(X):
-    """Create a gene-by-cell ranking matrix for ssGSEA scoring.
-
-    Args:
-        X (array): Expression matrix (cells x genes), can be sparse or dense.
-
-    Returns:
-        numpy.ndarray: Ranking matrix of shape (n_genes, n_cells).
-    """
-    arr = X
-    if scipy.sparse.issparse(arr):
-        arr = arr.toarray()
-    arrrank = rankdata(arr.T, axis=0, method="min")
-    return arrrank
+from .utils import create_rank_matrix
 
 
 def calculate_enrichment_single_geneset(geneset, arr_index, arrrank):

@@ -75,7 +75,8 @@ def test_info_bad_phenotype(runner, muscle_path):
 def test_info_analyzed(runner, analyzed_path):
     result = runner.invoke(cli, ["info", analyzed_path])
     assert result.exit_code == 0
-    assert "factors" in result.output
+    assert "CDR-g Analysis Results" in result.output
+    assert "unique" in result.output
 
 
 # ---------------------------------------------------------------------------
@@ -192,6 +193,46 @@ def test_results_no_analysis(runner, muscle_path):
     assert result.exit_code != 0
 
 
+def test_results_table_format(runner, analyzed_path):
+    result = runner.invoke(cli, ["results", analyzed_path, "-f", "table"])
+    assert result.exit_code == 0
+    assert "---" in result.output  # separator line
+
+
+def test_results_markdown_format(runner, analyzed_path):
+    result = runner.invoke(cli, ["results", analyzed_path, "-f", "markdown"])
+    assert result.exit_code == 0
+    assert "|" in result.output
+
+
+# ---------------------------------------------------------------------------
+# plot
+# ---------------------------------------------------------------------------
+
+def test_plot_command(runner, analyzed_path, tmp_path_factory):
+    pytest.importorskip("matplotlib")
+    out = str(tmp_path_factory.mktemp("cli_plot") / "summary.png")
+    result = runner.invoke(cli, ["plot", analyzed_path, "-o", out])
+    assert result.exit_code == 0
+    assert "Wrote" in result.output
+    assert Path(out).exists()
+
+
+# ---------------------------------------------------------------------------
+# report
+# ---------------------------------------------------------------------------
+
+def test_report_command(runner, analyzed_path, tmp_path_factory):
+    out = str(tmp_path_factory.mktemp("cli_report") / "report.html")
+    result = runner.invoke(cli, [
+        "report", analyzed_path, "-p", "Hours", "-o", out,
+    ])
+    assert result.exit_code == 0
+    assert "Wrote" in result.output
+    content = Path(out).read_text()
+    assert "<html" in content
+
+
 # ---------------------------------------------------------------------------
 # run (full pipeline)
 # ---------------------------------------------------------------------------
@@ -203,6 +244,7 @@ def test_run_minimal(runner, muscle_path, tmp_path_factory):
     ])
     assert result.exit_code == 0
     assert "CDR-g analysis complete" in result.output
+    assert "CDR-g Analysis Summary" in result.output
     assert "Wrote" in result.output
     adata = ad.read_h5ad(out)
     assert "factor_loadings" in adata.uns
@@ -240,6 +282,7 @@ def test_run_with_kruskal(runner, muscle_path, tmp_path_factory):
     ])
     assert result.exit_code == 0
     assert "Enrichment complete" in result.output
+    assert "FDR" in result.output
 
 
 def test_run_bad_phenotype(runner, muscle_path):
