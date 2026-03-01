@@ -531,25 +531,19 @@ def generate_html_report(adata, output_path, phenotype):
             )
 
         enrichment_guide = (
-            "<h3>Enrichment statistics</h3>\n"
+            "<h3>Enrichment columns</h3>\n"
             f"<p>{method_note}</p>\n"
             "<dl>\n"
-            f"  <dt>{stat_label}</dt>\n"
-            f"  <dd>{stat_desc}</dd>\n"
-            "  <dt>pval</dt>\n"
-            "  <dd>The raw p-value from the statistical test. Smaller values "
-            "indicate more significant differences between conditions.</dd>\n"
-            "  <dt>FDR</dt>\n"
-            "  <dd>The Benjamini-Hochberg false discovery rate. Factors with "
+            "  <dt>enrich_fdr</dt>\n"
+            "  <dd>The Benjamini-Hochberg false discovery rate from the "
+            "enrichment test. Factors with "
             "FDR&nbsp;&lt;&nbsp;0.05 are considered significantly enriched "
             "across conditions. These are the most biologically meaningful "
             "factors to investigate further.</dd>\n"
             "  <dt>dominant_condition</dt>\n"
-            "  <dd>The phenotype group that drives this factor most strongly. "
-            "When enrichment is available, this is determined by the condition "
-            "with the highest median ssGSEA score; otherwise it is derived "
-            "from the condition with the highest mean absolute factor "
-            "loading.</dd>\n"
+            "  <dd>The phenotype group that drives this factor most strongly, "
+            "determined by the condition with the highest median ssGSEA "
+            "enrichment score.</dd>\n"
             "</dl>"
         )
     else:
