@@ -156,41 +156,54 @@ pycdr --help
 
 ### Quick start
 
+Try the bundled demo to see the full pipeline on test data:
+
 ```bash
-# Try it out -- run a full example on bundled test data
 pycdr demo
+```
 
-# Minimal -- run CDR-g analysis
+Run CDR-g on your own data (minimal):
+
+```bash
 pycdr run data.h5ad -p stim
+```
 
-# End-to-end: filter, analyze, enrich, and generate HTML report
+End-to-end with filtering, enrichment, and an HTML report:
+
+```bash
 pycdr run data.h5ad -p stim -o results.h5ad -c results.csv \
   --filter-method numcells --min-cells 25 \
   --enrich --enrich-method kruskal --report report.html
+```
 
-# Subset to a specific cell population before analysis
+### Subsetting cells
+
+Subset to a specific cell population before analysis:
+
+```bash
 pycdr run data.h5ad -p stim --subset "celltype=T_cells"
+```
 
-# Multiple subset values (OR) and multiple columns (AND)
+Multiple values within a column are combined with OR; multiple `--subset` flags are combined with AND:
+
+```bash
 pycdr run data.h5ad -p stim \
   --subset "celltype=T_cells,NK_cells" --subset "batch=batch1"
+```
 
-# Inspect a dataset
-pycdr info data.h5ad -p stim
+### Inspecting and exporting results
 
-# Export top genes for a specific factor
-pycdr results analyzed.h5ad --top-genes 20 --factor 3
+```bash
+pycdr info data.h5ad -p stim                       # dataset overview
+pycdr results analyzed.h5ad -f table                # readable table in terminal
+pycdr results analyzed.h5ad --top-genes 20 --factor 3  # top genes for one factor
+```
 
-# View results as a readable table in the terminal
-pycdr results analyzed.h5ad -f table
+### Post-hoc enrichment, plotting, and reports
 
-# Re-run enrichment with different parameters
+```bash
 pycdr enrich analyzed.h5ad -p stim -m kruskal -o enriched.h5ad
-
-# Generate a summary figure
 pycdr plot analyzed.h5ad -o summary.png
-
-# Generate an HTML report
 pycdr report analyzed.h5ad -p stim -o report.html
 ```
 
