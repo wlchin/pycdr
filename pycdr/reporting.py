@@ -346,12 +346,19 @@ _HTML_TEMPLATE = """\
          max-width: 900px; margin: 40px auto; padding: 0 20px; color: #333; }}
   h1 {{ border-bottom: 2px solid #2563eb; padding-bottom: 8px; }}
   h2 {{ color: #2563eb; margin-top: 2em; }}
+  h3 {{ color: #475569; margin-top: 1.5em; }}
   table {{ border-collapse: collapse; width: 100%; margin: 1em 0; }}
   th, td {{ border: 1px solid #ddd; padding: 8px 12px; text-align: left; }}
   th {{ background: #f8fafc; font-weight: 600; }}
   tr:nth-child(even) {{ background: #f8fafc; }}
   .meta {{ color: #666; }}
   .note {{ background: #fffbeb; border: 1px solid #fbbf24; padding: 12px; border-radius: 4px; }}
+  .guide {{ background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 6px;
+            padding: 16px 20px; margin: 1.5em 0; line-height: 1.6; }}
+  .guide p {{ margin: 0.5em 0; }}
+  .guide dl {{ margin: 0.5em 0 0.5em 0; }}
+  .guide dt {{ font-weight: 600; margin-top: 0.5em; }}
+  .guide dd {{ margin: 0.1em 0 0 1.5em; }}
   img.figure {{ max-width: 100%; border: 1px solid #ddd; border-radius: 4px; margin: 1em 0; }}
 </style>
 </head>
@@ -364,6 +371,54 @@ _HTML_TEMPLATE = """\
   <strong>Phenotype:</strong> '{phenotype}' ({n_groups} groups: {group_detail})<br>
   <strong>Factors:</strong> {n_factors} ({factors_with_genes} with genes)
 </p>
+
+<h2>How to read this report</h2>
+<div class="guide">
+<p>
+CDR-g decomposes gene co-expression patterns across your experimental conditions
+using SVD and varimax rotation. Each <strong>factor</strong> represents a
+co-expression program &mdash; a group of genes whose expression changes together
+between conditions.
+</p>
+
+<h3>Factor summary table</h3>
+<dl>
+  <dt>factor</dt>
+  <dd>A numbered identifier (e.g. factor.0, factor.1). Factors are ordered by
+  eigenvalue, so lower-numbered factors capture more variance. A factor with
+  <strong>0 genes</strong> showed no statistically significant condition-dependent
+  co-expression and can usually be ignored.</dd>
+
+  <dt>n_genes</dt>
+  <dd>The number of genes assigned to this factor by permutation testing
+  (p&nbsp;&lt;&nbsp;0.05). More genes suggests a broader transcriptional program;
+  fewer genes suggests a more specific one.</dd>
+
+  <dt>mean_zscore</dt>
+  <dd>The average z-score of gene loading differences across conditions for
+  genes in the factor. Higher values indicate stronger condition-dependent
+  co-expression. A z-score &gt;&nbsp;2 indicates a gene&rsquo;s loading
+  difference is well above what would be expected by chance.</dd>
+
+  <dt>top_genes</dt>
+  <dd>The three genes with the highest z-scores in each factor. These are the
+  most condition-responsive genes in the program and are a good starting point
+  for biological interpretation (e.g. pathway lookup, literature search).</dd>
+</dl>
+
+{enrichment_guide}
+
+<h3>Practical interpretation</h3>
+<p>
+Factors with many genes and high mean z-scores represent the dominant
+condition-specific programs in your data. To interpret a factor biologically,
+examine its top genes for known pathway membership or functional annotations.
+Factors that share genes may represent overlapping or related programs.
+Factors with few genes (&lt;&nbsp;5) may reflect noise or very specific
+regulatory events &mdash; consider them with caution unless the enrichment
+test confirms significance.
+</p>
+</div>
 
 <h2>Factor Summary</h2>
 {factor_table_html}
@@ -401,14 +456,61 @@ def generate_html_report(adata, output_path, phenotype):
     df = get_factor_summary(adata)
     factor_table_html = _df_to_html_table(df)
 
-    # Enrichment section
+    # Enrichment section and guide
     enrich_stats = adata.uns.get("enrichment_stats")
-    if enrich_stats is not None and isinstance(enrich_stats, pd.DataFrame):
+    has_enrichment = enrich_stats is not None and isinstance(enrich_stats, pd.DataFrame)
+    if has_enrichment:
         enrichment_section = "<h2>Enrichment Statistics</h2>\n" + _df_to_html_table(
             enrich_stats.reset_index().rename(columns={"index": "factor"})
         )
+        # Determine which method was used from column names
+        if "stat" in enrich_stats.columns and "pval" in enrich_stats.columns:
+            method_note = (
+                "The Kruskal-Wallis test was used to assess whether each "
+                "factor&#8217;s gene set is differentially enriched across "
+                "conditions."
+            )
+            stat_label = "stat"
+            stat_desc = (
+                "The Kruskal-Wallis H-statistic. Larger values indicate "
+                "stronger differences in enrichment scores between conditions."
+            )
+        else:
+            method_note = (
+                "A permutation-based enrichment test was used to assess "
+                "whether each factor&#8217;s gene set shows "
+                "condition-dependent activation."
+            )
+            stat_label = "statistic"
+            stat_desc = (
+                "The chi-square test statistic for differential activation "
+                "across conditions."
+            )
+
+        enrichment_guide = (
+            "<h3>Enrichment statistics</h3>\n"
+            f"<p>{method_note}</p>\n"
+            "<dl>\n"
+            f"  <dt>{stat_label}</dt>\n"
+            f"  <dd>{stat_desc}</dd>\n"
+            "  <dt>pval</dt>\n"
+            "  <dd>The raw p-value from the statistical test. Smaller values "
+            "indicate more significant differences between conditions.</dd>\n"
+            "  <dt>FDR</dt>\n"
+            "  <dd>The Benjamini-Hochberg false discovery rate. Factors with "
+            "FDR&nbsp;&lt;&nbsp;0.05 are considered significantly enriched "
+            "across conditions. These are the most biologically meaningful "
+            "factors to investigate further.</dd>\n"
+            "</dl>"
+        )
     else:
         enrichment_section = ""
+        enrichment_guide = (
+            '<p><em>No enrichment analysis was run. Use '
+            '<code>--enrich</code> with <code>pycdr run</code> or '
+            '<code>pycdr enrich</code> to test which factors show '
+            'statistically significant differences between conditions.</em></p>'
+        )
 
     # Figure section
     figure_section = _try_embed_figure(adata)
@@ -422,6 +524,7 @@ def generate_html_report(adata, output_path, phenotype):
         n_factors=n_factors,
         factors_with_genes=factors_with_genes,
         factor_table_html=factor_table_html,
+        enrichment_guide=enrichment_guide,
         enrichment_section=enrichment_section,
         figure_section=figure_section,
     )
