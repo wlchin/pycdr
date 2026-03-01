@@ -19,3 +19,10 @@ htmlcov/
 # Environments
 .venv/
 venv/
+
+# Benchmark outputs
+benchmarks/data/
+benchmarks/results/
+benchmarks/benchmarks_sm/
+benchmarks/figures/
+benchmarks/.snakemake/
