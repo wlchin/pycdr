@@ -78,14 +78,14 @@ def test_CDR_muscle_Fs_diff(analyzed_muscle):
 def test_enrichment(analyzed_muscle):
     a, b = perm.calculate_enrichment(analyzed_muscle, "Hours",  ['factor.9'] , 10, "gene_short_name", 0.1)
     assert a["factor.9"][0] == [5, 0]
-    assert b["factor.9"][1] == 0.06659680506323108
+    assert b["factor.9"][1] == pytest.approx(0.06659680506323108)
 
 def test_df_loading(analyzed_muscle):
     a, b = perm.calculate_enrichment(analyzed_muscle, "Hours",  ['factor.9'] , 10, "gene_short_name", 0.1)
     c = perm.get_df_loadings(analyzed_muscle).fdr[0]
     d = perm.get_df_loadings(analyzed_muscle).a_max[0]
-    assert c == 0.06659680506323108
-    assert d == 0.08196721311475409
+    assert c == pytest.approx(0.06659680506323108)
+    assert d == pytest.approx(0.08196721311475409)
 
 def test_filter_percent(analyzed_muscle):
     y = utils.filter_genecounts_percent(analyzed_muscle, 5, 4)
@@ -97,8 +97,8 @@ def test_filter_counts(analyzed_muscle):
 
 def test_top_genes(analyzed_muscle):
     y = utils.get_top_genes(analyzed_muscle, 1)
-    np.testing.assert_allclose(y["z_score"][0], 2.31, atol=0.01)
-    np.testing.assert_allclose(y["pval"][2], 0.13, atol=0.01)
+    np.testing.assert_allclose(y["z_score"].iloc[0], 2.31, atol=0.01)
+    np.testing.assert_allclose(y["pval"].iloc[2], 0.13, atol=0.01)
 
 
 # --- A. Sparse data paths (pycdr:65, utils:25+52, perm:24) ---
