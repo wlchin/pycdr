@@ -3,14 +3,9 @@ import numpy as np
 import scipy.sparse as ss
 import logging
 import time
-import warnings
-import dask.array as da
-from dask_ml.decomposition import TruncatedSVD
+from sklearn.decomposition import TruncatedSVD
 from .feature_selection import get_significant_genes
 from .feature_selection import calculate_minmax
-
-warnings.simplefilter("ignore") 
-logging.basicConfig(format='%(process)d - %(levelname)s : %(asctime)s - %(message)s', level=logging.DEBUG)
 
 logger = logging.getLogger(__name__)
 
@@ -33,10 +28,10 @@ def run_CDR_analysis(data, phenotype, capvar=0.95, pernum=2000, thres=0.05):
     """
     start = time.time()
     
-    gene_num = data.X.shape[0]
-    cell_num = data.X.shape[1]
-    
-    logger.info('processing dataset of %s genes X %s cells', cell_num, gene_num)
+    n_cells = data.X.shape[0]
+    n_genes = data.X.shape[1]
+
+    logger.info('processing dataset of %s genes X %s cells', n_genes, n_cells)
     logger.info('target class label:: %s', phenotype)
     logger.info("SVD and threshold selection")
     cdr_core(data, phenotype, capvar)
@@ -65,14 +60,10 @@ def svd_and_concatenate(matrixlist, capvar):
     Returns:
         _type_: _description_
     """
-    if ss.issparse(matrixlist[0]):
-        list_of_mats_as_dask_arrays = [da.from_array(np.array(d.todense())) for d in matrixlist]
-    else:
-        list_of_mats_as_dask_arrays = [da.from_array(d) for d in matrixlist]
-
-    list_of_corr_mats = [da.corrcoef(d) for d in list_of_mats_as_dask_arrays]
-    X = da.concatenate(list_of_corr_mats, axis=1)
-    X[da.isnan(X)] = 0.0
+    list_of_dense = [d.toarray() if ss.issparse(d) else d for d in matrixlist]
+    list_of_corr_mats = [np.corrcoef(d) for d in list_of_dense]
+    X = np.concatenate(list_of_corr_mats, axis=1)
+    X = np.nan_to_num(X, nan=0.0)
 
     _, y, Ek, Ss = get_optimal_threshold(X, capvar)
     return Ek, Ss, X, y 
@@ -140,18 +131,19 @@ def cdr_core(ad, pheno, capvar):
 
 def classic_orthomax(Phi, gamma=1, q=20, tol=1e-6):
     """Returns the orthomax rotation"""
-    from numpy import eye, asarray, dot, sum, diag
-    from numpy.linalg import svd
     p, k = Phi.shape
-    R = eye(k)
+    R = np.eye(k)
     d = 0
     for i in range(q):
         d_old = d
-        Lambda = dot(Phi, R)
-        u,s,vh = svd(dot(Phi.T,asarray(Lambda)**3 - (gamma/p) * dot(Lambda, diag(diag(dot(Lambda.T,Lambda))))))
-        R = dot(u,vh)
-        d = sum(s)
-        if d_old!=0 and d/d_old < 1 + tol: break
+        Lambda = np.dot(Phi, R)
+        u, s, vh = np.linalg.svd(
+            np.dot(Phi.T, np.asarray(Lambda)**3 - (gamma/p) * np.dot(Lambda, np.diag(np.diag(np.dot(Lambda.T, Lambda)))))
+        )
+        R = np.dot(u, vh)
+        d = np.sum(s)
+        if d_old != 0 and d/d_old < 1 + tol:
+            break
 
     return R
 
@@ -188,15 +180,11 @@ def get_optimal_threshold(num, thres, ncomp=2000):
     Returns:
         _type_: _description_
     """
-    nrows = num.shape[0]  # this shows num cells and is required for svd
-
-    numgenes = num.shape[1]  # this is to make sure if less 2000
-    if numgenes < ncomp:
-        ncomp = numgenes - 1
-    print(ncomp)
-    numm = num.rechunk((nrows, 10))
+    nrows = num.shape[0]
+    numgenes = num.shape[1]
+    ncomp = min(ncomp, nrows - 1, numgenes - 1)
     svd = TruncatedSVD(n_components=ncomp, n_iter=5, random_state=42)
-    svd.fit(numm)
+    svd.fit(num)
     x = np.cumsum(svd.explained_variance_ratio_)
     y = np.argmax(x > thres)
     if y == 0:
