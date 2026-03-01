@@ -3,7 +3,7 @@
 
 # CDR-g (CDR-genomics)
 
-CDR-g identifies **condition-specific gene expression programs** from multi-condition single-cell RNA-seq data. It uses SVD decomposition on gene co-expression matrices followed by varimax rotation and permutation testing to recover interpretable factors — each representing a set of co-regulated genes that distinguish one condition from others.
+CDR-g identifies **condition-specific gene expression programs** from multi-condition single-cell RNA-seq data. It uses SVD decomposition on gene co-expression matrices followed by varimax rotation and permutation testing to recover interpretable factors, each representing a set of co-regulated genes that distinguish one condition from others.
 
 CDR-g is described in the manuscript **"Spectral detection of condition-specific biological pathways in single-cell gene expression data"**. It extends the CDR framework introduced in [Portes & Small (2020)](https://doi.org/10.1103/PhysRevE.102.062301).
 
@@ -28,13 +28,13 @@ pip install cdr-py[plot]
 
 ## Preparing your data
 
-CDR-g takes an [AnnData](https://anndata.readthedocs.io/) `.h5ad` file. The data must be preprocessed before running CDR-g — normalization and log-transformation are **not** handled by pycdr.
+CDR-g takes an [AnnData](https://anndata.readthedocs.io/) `.h5ad` file. The data must be preprocessed before running CDR-g -- normalization and log-transformation are **not** handled by pycdr.
 
 ### What CDR-g expects
 
-- **`adata.X`** — **log-transformed** count matrix (cells x genes). Sparse or dense.
-- **`adata.obs`** — must contain a column identifying the condition/phenotype of interest (e.g. `"stim"`, `"Hours"`)
-- **`adata.var`** — gene metadata. If running enrichment with the `perm` method, a gene name column (e.g. `"gene_short_name"`) must be present.
+- **`adata.X`** -- **log-transformed** count matrix (cells x genes). Sparse or dense.
+- **`adata.obs`** -- must contain a column identifying the condition/phenotype of interest (e.g. `"stim"`, `"Hours"`)
+- **`adata.var`** -- gene metadata. If running enrichment with the `perm` method, a gene name column (e.g. `"gene_short_name"`) must be present.
 
 ### Preprocessing with scanpy (recommended)
 
@@ -115,11 +115,13 @@ df.to_csv("results.csv", index=False)
 | `pval_mat` | Permutation p-values (genes x factors) |
 | `zscores` | Z-scores for gene significance (genes x factors) |
 | `selected_loading` | Number of factors selected by variance threshold |
+| `condition_labels` | List of condition group names (same order as Fs blocks) |
+| `dominant_condition` | Dominant condition per factor (list of strings) |
 | `pval_dict` | Enrichment test statistics and p-values (after enrichment) |
 
 ## Command-line interface
 
-After installation, the `pycdr` CLI lets you run the full pipeline from the terminal — useful for scripting, workflow managers (Snakemake, Nextflow), or quick exploration.
+After installation, the `pycdr` CLI lets you run the full pipeline from the terminal -- useful for scripting, workflow managers (Snakemake, Nextflow), or quick exploration.
 
 ```
 pycdr --help
@@ -141,7 +143,7 @@ pycdr --help
 ### Quick start
 
 ```bash
-# Minimal — run CDR-g analysis
+# Minimal -- run CDR-g analysis
 pycdr run data.h5ad -p stim
 
 # End-to-end: filter, analyze, enrich, and generate HTML report
@@ -180,44 +182,45 @@ pycdr report analyzed.h5ad -p stim -o report.html
 | Option | Default | Description |
 |--------|---------|-------------|
 | `-p, --phenotype` | required | Condition column in `adata.obs` |
-| `-s, --subset` | — | Subset cells: `COLUMN=VALUE[,VALUE2]`. Repeatable. |
+| `-s, --subset` | - | Subset cells: `COLUMN=VALUE[,VALUE2]`. Repeatable. |
 | `-o, --output` | `{stem}_cdr.h5ad` | Output .h5ad path |
-| `-c, --csv` | — | Export results CSV |
+| `-c, --csv` | - | Export results CSV |
 | `--filter-method` | `none` | `none`, `percent`, or `numcells` |
 | `--enrich / --no-enrich` | off | Run enrichment after analysis |
 | `--enrich-method` | `perm` | `perm` (chi-square) or `kruskal` (KW test) |
-| `--genecol` | — | Gene name column (required for perm) |
-| `--report` | — | Generate an HTML report at this path |
-| `-v / -vv` | — | INFO / DEBUG logging |
+| `--genecol` | - | Gene name column (required for perm) |
+| `--report` | - | Generate an HTML report at this path |
+| `-v / -vv` | - | INFO / DEBUG logging |
 
 Run `pycdr run --help` for the full list of options.
 
 ## Interpreting results
 
-CDR-g identifies **factors** — each factor is a co-expression program, a group of genes whose expression changes together between your experimental conditions. After running the pipeline, the key question is: *which factors are biologically meaningful and what do they represent?*
+CDR-g identifies **factors** -- each factor is a co-expression program, a group of genes whose expression changes together between your experimental conditions. After running the pipeline, the key question is: *which factors are biologically meaningful and what do they represent?*
 
 ### Factors and gene assignments
 
 - **Factor numbering** (factor.0, factor.1, ...) reflects eigenvalue order. Lower-numbered factors capture more variance in the data, but this does not necessarily mean they are the most biologically interesting.
 - **Gene count** (`n_genes`): The number of genes assigned to a factor by permutation testing (p < 0.05). Factors with many genes represent broad transcriptional programs; those with few genes are more specific. Factors with **0 genes** had no statistically significant condition-dependent co-expression and can usually be ignored.
 - **Mean z-score** (`mean_zscore`): Measures how strongly a factor's genes change across conditions compared to a permutation null. Higher values indicate stronger condition-specific co-expression. A z-score above 2 means a gene's loading difference is well above what would be expected by chance.
-- **Top genes**: The genes with the highest z-scores in each factor. These are the most condition-responsive genes in the program and are the best starting point for biological interpretation — look them up in pathway databases or the literature.
+- **Top genes**: The genes with the highest z-scores in each factor. These are the most condition-responsive genes in the program and are the best starting point for biological interpretation -- look them up in pathway databases or the literature.
+- **Dominant condition** (`dominant_condition`): The phenotype group that drives each factor most strongly. This is always computed from the Fs matrix (the condition block with the highest mean absolute loading). When enrichment is run, it is overridden by a more biologically interpretable measure: the condition with the highest median ssGSEA score (Kruskal) or the highest activation proportion (perm). This label tells you *which* condition a factor is associated with, not just *that* the factor differs between conditions.
 
 ### Enrichment testing
 
 If you run enrichment (`--enrich`), each factor's gene set is tested for differential activity across conditions:
 
-- **Kruskal-Wallis** (`--enrich-method kruskal`): a non-parametric test on ssGSEA enrichment scores. Reports an H-statistic — larger values indicate stronger differences between conditions.
+- **Kruskal-Wallis** (`--enrich-method kruskal`): a non-parametric test on ssGSEA enrichment scores. Reports an H-statistic -- larger values indicate stronger differences between conditions.
 - **Permutation** (`--enrich-method perm`): a chi-square proportions test on binarized gene set activation. Requires `--genecol`.
 
-Both methods report a **p-value** and a Benjamini-Hochberg **FDR**. Factors with **FDR < 0.05** are considered significantly differentially active between conditions and are the most important to investigate further.
+Both methods report a **p-value**, a Benjamini-Hochberg **FDR**, and a **dominant_condition** column identifying which phenotype group drives each factor. Factors with **FDR < 0.05** are considered significantly differentially active between conditions and are the most important to investigate further.
 
 ### Practical tips
 
-- Start with factors that have **many genes, high mean z-scores, and significant FDR**. These represent the dominant condition-specific programs.
+- Start with factors that have **many genes, high mean z-scores, and significant FDR**. These represent the dominant condition-specific programs. The **dominant condition** column tells you which phenotype group each factor is associated with.
 - To interpret a factor biologically, look up its top genes in pathway databases (e.g. MSigDB, Enrichr, Gene Ontology).
 - Factors that share genes may represent overlapping or related biological processes.
-- Factors with very few genes (< 5) may reflect noise unless enrichment testing confirms significance — treat them with caution.
+- Factors with very few genes (< 5) may reflect noise unless enrichment testing confirms significance -- treat them with caution.
 - Use `pycdr report` to generate an HTML report that includes this guidance alongside your results.
 
 ## Example workflows
