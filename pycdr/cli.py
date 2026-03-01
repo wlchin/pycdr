@@ -433,9 +433,11 @@ def results(input, output, fmt, top_genes, factor, verbose, quiet):
 @click.argument("input", type=click.Path(exists=True))
 @click.option("-o", "--output", default=None, help="Output image path (default: cdr_summary.png).")
 @click.option("--dpi", default=150, show_default=True, help="Figure DPI.")
+@click.option("--max-factors", default=30, show_default=True,
+              help="Max factors to display. Use 0 for all.")
 @click.option("-v", "--verbose", count=True, help="Increase verbosity (-v INFO, -vv DEBUG).")
 @click.option("-q", "--quiet", is_flag=True, help="Errors only.")
-def plot(input, output, dpi, verbose, quiet):
+def plot(input, output, dpi, max_factors, verbose, quiet):
     """Generate a summary figure from CDR-g results."""
     _setup_logging(verbose, quiet)
     try:
@@ -448,8 +450,15 @@ def plot(input, output, dpi, verbose, quiet):
     adata = _read_h5ad(input)
     validate_analyzed(adata)
 
+    limit = None if max_factors == 0 else max_factors
     out = output or default_output(input, suffix="_summary").replace(".h5ad", ".png")
-    plot_summary(adata, out, dpi=dpi)
+    n_omitted = plot_summary(adata, out, dpi=dpi, max_factors=limit)
+    if n_omitted:
+        click.echo(
+            f"Note: {n_omitted} factors omitted from plot "
+            f"(showing top {max_factors}, ranked by FDR then gene count). "
+            f"Use --max-factors 0 to show all."
+        )
     click.echo(f"Wrote {out}")
 
 
