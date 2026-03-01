@@ -1,6 +1,8 @@
 """Run timed CDR analysis with phase breakdown."""
 
 import json
+import platform
+import resource
 import time
 import tracemalloc
 import sys
@@ -15,29 +17,46 @@ from pycdr.pycdr import cdr_core
 from pycdr.feature_selection import get_significant_genes
 
 
+def get_peak_rss_mb():
+    """Get current peak RSS in MB (handles macOS vs Linux)."""
+    peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    if platform.system() == "Darwin":
+        return peak / 1e6  # macOS: bytes -> MB
+    return peak / 1e3  # Linux: KB -> MB
+
+
 def run_benchmark(h5ad_path, n_genes, n_cells, rep, capvar, nperm, thres, output_path):
     adata = ad.read_h5ad(h5ad_path)
     phenotype_col = "condition"
 
-    tracemalloc.start()
+    rss_baseline = get_peak_rss_mb()
 
     # Phase 1: SVD
+    tracemalloc.start()
     t0 = time.perf_counter()
     cdr_core(adata, phenotype_col, capvar)
     t1 = time.perf_counter()
     svd_time = t1 - t0
+    _, svd_tracemalloc_peak = tracemalloc.get_traced_memory()
+    tracemalloc.stop()
+
+    rss_after_svd = get_peak_rss_mb()
+    svd_rss_delta_mb = rss_after_svd - rss_baseline
 
     n_factors = adata.uns["selected_loading"]
     npheno = adata.uns["n_pheno"]
 
     # Phase 2: Permutation testing
+    tracemalloc.start()
     t2 = time.perf_counter()
     get_significant_genes(adata, npheno, permnum=nperm, thres=thres)
     t3 = time.perf_counter()
     perm_time = t3 - t2
-
-    _, peak_bytes = tracemalloc.get_traced_memory()
+    _, perm_tracemalloc_peak = tracemalloc.get_traced_memory()
     tracemalloc.stop()
+
+    rss_after_perm = get_peak_rss_mb()
+    perm_rss_delta_mb = rss_after_perm - rss_after_svd
 
     result = {
         "n_genes": int(n_genes),
@@ -47,7 +66,11 @@ def run_benchmark(h5ad_path, n_genes, n_cells, rep, capvar, nperm, thres, output
         "perm_time_s": round(perm_time, 4),
         "total_time_s": round(svd_time + perm_time, 4),
         "n_factors": int(n_factors),
-        "peak_memory_mb": round(peak_bytes / 1e6, 2),
+        "peak_rss_mb": round(rss_after_perm, 2),
+        "svd_rss_delta_mb": round(svd_rss_delta_mb, 2),
+        "perm_rss_delta_mb": round(max(perm_rss_delta_mb, 0), 2),
+        "svd_tracemalloc_mb": round(svd_tracemalloc_peak / 1e6, 2),
+        "perm_tracemalloc_mb": round(perm_tracemalloc_peak / 1e6, 2),
     }
 
     with open(output_path, "w") as f:
