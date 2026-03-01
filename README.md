@@ -19,13 +19,22 @@ CDR-g is described in the manuscript **"Spectral detection of condition-specific
 
 ## Installation
 
-CDR-g requires Python >= 3.9. Install in a virtual environment:
+CDR-g requires Python >= 3.9.
 
 ```bash
+# pip
 pip install cdr-py
+
+# uv
+uv add cdr-py
 
 # With plotting support (for pycdr plot / pycdr report figures)
 pip install cdr-py[plot]
+uv add cdr-py[plot]
+
+# Latest development version from GitHub
+pip install git+https://github.com/wlchin/pycdr.git
+uv add git+https://github.com/wlchin/pycdr.git
 ```
 
 ## Preparing your data
@@ -135,6 +144,7 @@ pycdr --help
 
 | Command | Description |
 |---------|-------------|
+| `pycdr demo` | Run an end-to-end example on bundled test data |
 | `pycdr run` | Full pipeline (filter + analyze + enrich + export) |
 | `pycdr analyze` | Run CDR-g SVD/varimax analysis only |
 | `pycdr filter` | Filter genes from an .h5ad file |
@@ -147,6 +157,9 @@ pycdr --help
 ### Quick start
 
 ```bash
+# Try it out -- run a full example on bundled test data
+pycdr demo
+
 # Minimal -- run CDR-g analysis
 pycdr run data.h5ad -p stim
 
