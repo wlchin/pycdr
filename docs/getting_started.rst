@@ -19,11 +19,10 @@ The two steps below will (1) run the CDR-g analysis to produce gene expression p
 
 .. code-block:: python
 
-	from pycdr.pycdr import run_CDR_analysis
-	from pycdr.perm import calculate_enrichment
+	from pycdr import run_CDR_analysis, calculate_enrichment
 
 	run_CDR_analysis(anndata_object, condition_of_interest)
-	calculate_enrichment(anndata_object)
+	calculate_enrichment(anndata_object, condition_of_interest)
 
 
 Example (snakemake) workflows

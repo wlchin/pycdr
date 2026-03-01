@@ -81,10 +81,9 @@ The final stage of the analysis is to identify gene sets which are more activate
 
 .. code-block:: python
 
-    from pycdr.perm import calculate_enrichment
+    from pycdr import calculate_enrichment
 
-    factor_list = [i for i in mono.uns["factor_loadings"].keys()]
-    calculate_enrichment(mono, "stim", factor_list, 100, "features", 0.05)
+    calculate_enrichment(mono, "stim")
 
 Viewing and saving results
 --------------------------
@@ -104,12 +103,8 @@ Example output from the first row of the dataframe:
 
     genes                     RSAD2,IFIT3,IFIT1,ISG20,APOBEC3A,MX1
     terms        defense response to virus,type I interferon si...
-    max_P                                                     STIM
-    a_max                                                 0.098277
-    a_range                                               0.098277
-    a_mean                                                0.049138
-    statistic                                           228.747876
-    pvalue                                                     0.0
+    stat                                                228.747876
+    pval                                                       0.0
     fdr                                                        0.0
     Name: factor.0, dtype: object
 

@@ -22,7 +22,7 @@ copyright = '2022, Melvin Chin & Leonardo Portes dos Santos'
 author = 'Melvin Chin & Leonardo Portes dos Santos'
 
 # The full version, including alpha/beta/rc tags
-release = '0.0.1'
+release = '0.0.3'
 
 
 # -- General configuration ---------------------------------------------------
@@ -32,6 +32,8 @@ release = '0.0.1'
 # ones.
 extensions = ['sphinx.ext.napoleon', 'sphinx.ext.autodoc', 'sphinx.ext.autosummary'
 ]
+
+autosummary_generate = True
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
