@@ -1,0 +1,3 @@
+[submodule "benchmarks/CDR_workflows"]
+	path = benchmarks/CDR_workflows
+	url = https://github.com/wlchin/CDR_workflows.git
