@@ -437,7 +437,9 @@ between conditions.
 
   <dt>n_genes</dt>
   <dd>The number of genes assigned to this factor by permutation testing
-  (p&nbsp;&lt;&nbsp;0.05). More genes suggests a broader transcriptional program;
+  (default: FDR-corrected q&nbsp;&lt;&nbsp;0.05 via per-factor Benjamini-Hochberg;
+  use <code>--correction none</code> for raw p-values).
+  More genes suggests a broader transcriptional program;
   fewer genes suggests a more specific one.</dd>
 
   <dt>mean_zscore</dt>
