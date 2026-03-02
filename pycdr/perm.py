@@ -21,7 +21,21 @@ def create_rank_matrix(adata):
     """
     return _create_rank_matrix(adata.X)
 
-def permute_matrix(adata, arrrank, factor, nperm, genecol, seed = 42):
+def _perm_batch_size(n_genes, n_cells, mem_budget=256 * 1024 * 1024):
+    """Compute batch size for permute_matrix within a memory budget.
+
+    Each batch element allocates ``n_genes_in_set * n_cells * 8`` bytes.
+    We conservatively use ``n_genes * n_cells * 8`` as an upper bound.
+    """
+    bytes_per_elem = n_genes * n_cells * 8
+    if bytes_per_elem <= 0:
+        return 1
+    batch = max(1, mem_budget // bytes_per_elem)
+    return min(batch, 4096)
+
+
+def permute_matrix(adata, arrrank, factor, nperm, genecol, seed=42,
+                   batch_size=None):
     """Compute observed ssGSEA score and a permutation null for one factor.
 
     Args:
@@ -31,6 +45,7 @@ def permute_matrix(adata, arrrank, factor, nperm, genecol, seed = 42):
         nperm (int): Number of permutations.
         genecol (str): Column in ``adata.var`` containing gene names.
         seed (int, optional): Random seed. Defaults to 42.
+        batch_size (int or None, optional): Permutations per batch. None = auto.
 
     Returns:
         tuple: (pmat, matreal) — permutation p-values and observed scores per cell.
@@ -49,11 +64,45 @@ def permute_matrix(adata, arrrank, factor, nperm, genecol, seed = 42):
 
     rng = np.random.default_rng(seed)
     n_cells = arrrank.shape[1]
+    n_in_set = int(ind.sum())
+
+    if batch_size is None:
+        batch_size = _perm_batch_size(genelength, n_cells)
+    batch_size = max(1, min(batch_size, nperm))
+
     count = np.zeros(n_cells)
-    for _ in range(nperm):
-        perm_idx = rng.permutation(genelength)
-        mato_i = (arrrank[perm_idx[ind]].mean(0) / genelength) - 0.5
-        count += (matreal > mato_i)
+    n_done = 0
+
+    while n_done < nperm:
+        current_batch = min(batch_size, nperm - n_done)
+
+        if current_batch == 1:
+            # Single-perm path (preserves exact RNG stream for batch_size=1)
+            perm_idx = rng.permutation(genelength)
+            mato_i = (arrrank[perm_idx[ind]].mean(0) / genelength) - 0.5
+            count += (matreal > mato_i)
+        else:
+            # Batched path
+            base = np.broadcast_to(
+                np.arange(genelength), (current_batch, genelength)
+            ).copy()
+            rng.permuted(base, axis=1, out=base)
+
+            # base[b] is a permutation of gene indices
+            # We need arrrank[base[b][ind]] for each b
+            # ind is a boolean mask on the original gene order
+            # base[b][ind] selects the genes at ind positions from the permuted order
+            ind_arr = np.where(ind)[0]
+            # (batch, n_in_set) — permuted indices at gene-set positions
+            perm_set_idx = base[:, ind_arr]
+            # (batch, n_in_set, n_cells)
+            perm_ranks = arrrank[perm_set_idx]
+            # (batch, n_cells)
+            mato_batch = (perm_ranks.mean(axis=1) / genelength) - 0.5
+            count += (matreal[None] > mato_batch).sum(axis=0)
+
+        n_done += current_batch
+
     pmat = (nperm - count) / nperm
 
     return pmat, matreal

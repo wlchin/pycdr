@@ -14,7 +14,7 @@ CDR-g is described in the manuscript **"Spectral detection of condition-specific
 1. **Co-expression matrices** are built per condition from the count matrix (`adata.X`)
 2. **Truncated SVD** decomposes the concatenated correlation matrices, retaining factors that capture a target variance threshold (default 95%)
 3. **Varimax rotation** produces interpretable factor loadings
-4. **Permutation testing** identifies genes with statistically significant loadings on each factor
+4. **Permutation testing** identifies genes with statistically significant loadings on each factor (batched and vectorized for speed, with adaptive early stopping)
 5. **Enrichment testing** (optional) assesses whether each gene program is differentially active across conditions via chi-square proportions test or Kruskal-Wallis test
 
 ## Installation
@@ -207,6 +207,34 @@ pycdr plot analyzed.h5ad -o summary.png
 pycdr report analyzed.h5ad -p stim -o report.html
 ```
 
+### Permutation testing options
+
+The permutation step determines which genes are assigned to each factor. More permutations give finer p-value resolution, which can surface additional significant genes after FDR correction.
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--nperm` / `--nperm-analysis` | `10000` | Number of permutations. Higher values give finer p-value resolution. |
+| `--adaptive / --no-adaptive` | `--adaptive` | Adaptive early stopping. Stops permuting once all genes are confidently decided (significant or not) at a 99.9% confidence level. Produces identical significance calls to running all permutations -- just faster. |
+| `--perm-method` | `exact` | P-value computation method. `exact` = brute-force empirical. `normal` = Gaussian moment-matching. `gpd` = Generalized Pareto tail fit. `auto` = exact for ≤100K perms, analytical for more. |
+| `--batch-size` | auto | Permutations processed per batch. Auto-sized to fit within 256 MB. |
+
+**Recommended usage:**
+
+```bash
+# Default (10K perms, adaptive on -- good for most analyses)
+pycdr analyze data.h5ad -p condition
+
+# Higher resolution -- surfaces more genes after FDR correction
+pycdr analyze data.h5ad -p condition --nperm 100000
+
+# Maximum precision -- analytical tail approximation for extreme p-values
+pycdr analyze data.h5ad -p condition --nperm 1000000 --perm-method auto
+```
+
+**Why more permutations matter:** With 2,000 permutations the finest p-value is 0.0005. After FDR correction, genes with true p-values between 0.0005 and 0.001 are indistinguishable and may be lost. At 10,000 permutations (the new default), resolution reaches 10^-4, and at 100,000 it reaches 10^-5 -- recovering genes that were hidden by discretization noise.
+
+**What adaptive does:** After a few thousand permutations, most genes have running p-values far from the significance threshold (e.g. 0.85 ± 0.01). Continuing to permute cannot change their status. Adaptive mode checks periodically whether every gene-factor pair has been confidently decided, and stops early when they have. This typically reduces wall time by 5-20x with no change in which genes are called significant.
+
 ### Common options for `pycdr run`
 
 | Option | Default | Description |
@@ -216,6 +244,9 @@ pycdr report analyzed.h5ad -p stim -o report.html
 | `-o, --output` | `{stem}_cdr.h5ad` | Output .h5ad path |
 | `-c, --csv` | - | Export results CSV |
 | `--filter-method` | `none` | `none`, `percent`, or `numcells` |
+| `--nperm-analysis` | `10000` | Permutations for gene selection |
+| `--adaptive / --no-adaptive` | `--adaptive` | Adaptive early stopping |
+| `--perm-method` | `exact` | P-value method (`exact`, `normal`, `gpd`, `auto`) |
 | `--enrich / --no-enrich` | off | Run enrichment after analysis |
 | `--enrich-method` | `perm` | `perm` (chi-square) or `kruskal` (KW test) |
 | `--genecol` | - | Gene name column (required for perm) |

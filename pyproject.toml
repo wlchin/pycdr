@@ -40,6 +40,8 @@ benchmark = [
     "scanpy>=1.9",
 ]
 plot = ["matplotlib>=3.5"]
+fast = ["numba>=0.57"]
+gpu = ["cupy-cuda12x"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["pycdr"]
