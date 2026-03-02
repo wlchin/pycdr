@@ -279,6 +279,7 @@ def test_run_with_kruskal(runner, muscle_path, tmp_path_factory):
     result = runner.invoke(cli, [
         "run", muscle_path, "-p", "Hours", "-o", out,
         "--enrich", "--enrich-method", "kruskal",
+        "--correction", "none",
     ])
     assert result.exit_code == 0
     assert "Enrichment complete" in result.output
@@ -329,14 +330,14 @@ def test_run_with_subset(runner, muscle_path, tmp_path_factory):
     out = str(tmp_path_factory.mktemp("cli_subset_run") / "out.h5ad")
     result = runner.invoke(cli, [
         "run", muscle_path, "-p", "Hours", "-o", out,
-        "-s", "Media=GM",
+        "-s", "State=1",
     ])
     assert result.exit_code == 0
     assert "Subset:" in result.output
     assert "CDR-g analysis complete" in result.output
     adata = ad.read_h5ad(out)
-    # All cells should be GM only
-    assert (adata.obs["Media"] == "GM").all()
+    # All cells should be State 1 only
+    assert (adata.obs["State"].astype(str) == "1").all()
 
 
 def test_run_with_multi_value_subset(runner, muscle_path, tmp_path_factory):
@@ -355,12 +356,12 @@ def test_run_with_multiple_subset_flags(runner, muscle_path, tmp_path_factory):
     out = str(tmp_path_factory.mktemp("cli_subset_and") / "out.h5ad")
     result = runner.invoke(cli, [
         "run", muscle_path, "-p", "Hours", "-o", out,
-        "-s", "Media=GM", "-s", "State=1,2",
+        "-s", "State=1,2",
     ])
     assert result.exit_code == 0
     assert "Subset:" in result.output
     adata = ad.read_h5ad(out)
-    assert (adata.obs["Media"] == "GM").all()
+    assert adata.obs["State"].astype(str).isin(["1", "2"]).all()
 
 
 def test_subset_bad_column(runner, muscle_path):

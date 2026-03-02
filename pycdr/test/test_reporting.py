@@ -22,7 +22,7 @@ def analyzed_adata():
     """Run CDR analysis on test data and return the AnnData."""
     adatapath = Path(__file__).parents[1] / "data/test_muscle.h5ad"
     adata = ad.read_h5ad(str(adatapath))
-    pycdr_mod.run_CDR_analysis(adata, "Hours")
+    pycdr_mod.run_CDR_analysis(adata, "Hours", correction="none")
     return adata
 
 
