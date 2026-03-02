@@ -85,7 +85,7 @@ def test_CDR_muscle_Fs_factor_loading(analyzed_muscle):
     assert analyzed_muscle.uns['factor_loadings']['factor.2'][0] == 'ARHGAP33'
 
 def test_CDR_muscle_Fs_diff(analyzed_muscle):
-    assert round(analyzed_muscle.uns['Fs_diff'][23,6], 4) == 0.235
+    assert round(analyzed_muscle.uns['Fs_diff'][23,6], 4) == 0.2351
 
 def test_enrichment(analyzed_muscle):
     a, b = perm.calculate_enrichment(analyzed_muscle, "Hours",  ['factor.9'] , 10, "gene_short_name", 0.1)

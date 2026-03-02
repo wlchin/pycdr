@@ -209,7 +209,7 @@ def cdr_core(ad, pheno, capvar, seed=42):
 # leos' aux functions for performing varimax
 
 
-def classic_orthomax(Phi, gamma=1, q=20, tol=1e-6):
+def classic_orthomax(Phi, gamma=1, q=200, tol=1e-6):
     """Returns the orthomax rotation"""
     p, k = Phi.shape
     R = np.eye(k)
