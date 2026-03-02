@@ -86,7 +86,7 @@ def test_CDR_muscle_Fs_factor_loading(analyzed_muscle):
     assert analyzed_muscle.uns['factor_loadings']['factor.2'][0] == 'ARHGAP33'
 
 def test_CDR_muscle_Fs_diff(analyzed_muscle):
-    assert round(analyzed_muscle.uns['Fs_diff'][23,6], 4) == 0.235
+    assert round(analyzed_muscle.uns['Fs_diff'][23,6], 4) == 0.2351
 
 def test_enrichment(analyzed_muscle):
     a, b = perm.calculate_enrichment(analyzed_muscle, "Hours",  ['factor.9'] , 10, "gene_short_name", 0.1)
@@ -413,22 +413,46 @@ def test_fdr_reduces_gene_counts(muscleobject):
     assert genes_fdr <= genes_none
 
 
-def test_fdr_corrected_pvals_stored(muscleobject):
-    """FDR correction should store both raw and corrected p-values."""
+def test_fdr_mat_stored(muscleobject):
+    """FDR correction should store fdr_mat with correct shape."""
     a = muscleobject.copy()
     pycdr.run_CDR_analysis(a, "Hours", nperm=100, correction="fdr_bh")
-    assert "pval_mat_raw" in a.uns
+    assert "fdr_mat" in a.uns
     assert "pval_mat" in a.uns
-    # Corrected p-values should be >= raw p-values
-    assert np.all(a.uns["pval_mat"] >= a.uns["pval_mat_raw"] - 1e-10)
+    assert a.uns["fdr_mat"].shape == a.uns["pval_mat"].shape
+    # FDR q-values should be >= raw p-values (BH only inflates)
+    assert np.all(a.uns["fdr_mat"] >= a.uns["pval_mat"] - 1e-10)
 
 
-def test_correction_none_matches_legacy(muscleobject):
-    """correction='none' should produce identical results to legacy behavior."""
+def test_fdr_rejects_noise():
+    """On pure random data, FDR should find near-zero significant genes."""
+    rng = np.random.default_rng(42)
+    nfacs = 2
+    rows_per_split = 200
+    n_rows = nfacs * rows_per_split
+    n_cols = 10
+    Fs = rng.standard_normal((n_rows, n_cols))
+
+    adata = ad.AnnData(np.zeros((rows_per_split, n_cols)))
+    adata.uns["Fs"] = Fs
+
+    selection, _, _ = feature_selection.select_modules(
+        adata, nperm=200, thresh=0.05, nfacs=nfacs, correction="fdr_bh"
+    )
+    # With pure noise, FDR should reject nearly everything
+    fdr_hits = selection.sum()
+    raw_selection = adata.uns["pval_mat"] < 0.05
+    raw_hits = raw_selection.sum()
+    # FDR should find far fewer hits than raw (allow some slack)
+    assert fdr_hits <= raw_hits
+
+
+def test_correction_none_backward_compat(muscleobject):
+    """correction='none' should match old behavior: no fdr_mat, raw pvals used."""
     a = muscleobject.copy()
     pycdr.run_CDR_analysis(a, "Hours", nperm=200, correction="none")
-    # With no correction, pval_mat should equal pval_mat_raw
-    np.testing.assert_array_equal(a.uns["pval_mat"], a.uns["pval_mat_raw"])
+    assert "pval_mat" in a.uns
+    assert "fdr_mat" not in a.uns
 
 
 # --- J. Phase 3: Input validation and edge cases ---

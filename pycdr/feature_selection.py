@@ -182,19 +182,18 @@ def select_modules(adata, nperm, thresh, nfacs, seed=42, correction="fdr_bh",
 
     z_score_mat = calculate_zscore(Fs_diff, av, var)
 
-    # Store raw p-values
-    adata.uns["pval_mat_raw"] = pval_mat
+    # Always store raw p-values
+    adata.uns["pval_mat"] = pval_mat
 
-    # Apply multiple testing correction
+    # Apply multiple testing correction (per-factor BH)
     if correction == "fdr_bh":
-        flat_pvals = pval_mat.ravel()
-        _, flat_corrected = fdrcorrection(flat_pvals)
-        corrected_pval_mat = flat_corrected.reshape(pval_mat.shape)
-        adata.uns["pval_mat"] = corrected_pval_mat
-        selection = corrected_pval_mat < thresh
-        logger.info("Applied FDR (Benjamini-Hochberg) correction")
+        fdr_mat = np.empty_like(pval_mat)
+        for col in range(pval_mat.shape[1]):
+            _, fdr_mat[:, col] = fdrcorrection(pval_mat[:, col], alpha=thresh)
+        adata.uns["fdr_mat"] = fdr_mat
+        selection = fdr_mat < thresh
+        logger.info("Applied per-factor FDR (Benjamini-Hochberg) correction")
     else:
-        adata.uns["pval_mat"] = pval_mat
         selection = pval_mat < thresh
 
     logger.debug("Permutation complete: %d/%d genes significant",

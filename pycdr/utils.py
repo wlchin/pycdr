@@ -94,9 +94,15 @@ def get_top_genes(adata, i):
     zscore = adata.uns["zscores"][:,i].tolist()
     floadings = adata.uns["Fs_diff"][:,i].tolist()
     pvals = adata.uns["pval_mat"][:,i].tolist()
-    hum = pd.DataFrame([zscore, floadings, pvals]).T
+    data = [zscore, floadings, pvals]
+    columns = ["z_score", "Fs_diff", "pval"]
+    fdr_mat = adata.uns.get("fdr_mat")
+    if fdr_mat is not None:
+        data.append(fdr_mat[:, i].tolist())
+        columns.append("fdr")
+    hum = pd.DataFrame(data).T
     hum.index = sigs
-    hum.columns = ["z_score", "Fs_diff", "pval"]
+    hum.columns = columns
     return hum.sort_values("z_score", ascending = False)
 
 
