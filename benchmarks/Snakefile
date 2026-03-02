@@ -2,12 +2,14 @@ configfile: "config.yaml"
 
 N_GENES = config["n_genes"]
 N_CELLS = config["n_cells"]
+N_PERMS = config["nperm"]
 REPS = list(range(1, config["n_repeats"] + 1))
 
 
 rule all:
     input:
         "figures/benchmark_scaling.png",
+        "figures/permutation_scaling.png",
         "results/benchmark_summary.tsv",
 
 
@@ -27,15 +29,15 @@ rule run_benchmark:
     input:
         "data/genes{n_genes}_cells{n_cells}.h5ad",
     output:
-        "results/genes{n_genes}_cells{n_cells}_rep{rep}.json",
+        "results/genes{n_genes}_cells{n_cells}_nperm{nperm}_rep{rep}.json",
     params:
         n_genes="{n_genes}",
         n_cells="{n_cells}",
         capvar=config["capvar"],
-        nperm=config["nperm"],
+        nperm="{nperm}",
         thres=config["thres"],
     benchmark:
-        "benchmarks_sm/genes{n_genes}_cells{n_cells}_rep{rep}.tsv"
+        "benchmarks_sm/genes{n_genes}_cells{n_cells}_nperm{nperm}_rep{rep}.tsv"
     script:
         "scripts/run_benchmark.py"
 
@@ -43,9 +45,10 @@ rule run_benchmark:
 rule collect_results:
     input:
         jsons=expand(
-            "results/genes{n_genes}_cells{n_cells}_rep{rep}.json",
+            "results/genes{n_genes}_cells{n_cells}_nperm{nperm}_rep{rep}.json",
             n_genes=N_GENES,
             n_cells=N_CELLS,
+            nperm=N_PERMS,
             rep=REPS,
         ),
     output:
@@ -63,3 +66,12 @@ rule plot_results:
         "figures/benchmark_scaling.png",
     script:
         "scripts/plot_benchmark.py"
+
+
+rule plot_permutation:
+    input:
+        "results/benchmark_summary.tsv",
+    output:
+        "figures/permutation_scaling.png",
+    script:
+        "scripts/plot_permutation.py"

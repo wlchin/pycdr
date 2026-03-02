@@ -4,7 +4,7 @@ n_cells: [200, 500, 1000, 2000, 5000, 10000]
 
 # CDR analysis parameters
 capvar: 0.95
-nperm: 500
+nperm: [100, 200, 500, 1000, 2000]
 thres: 0.05
 
 # Synthetic data parameters

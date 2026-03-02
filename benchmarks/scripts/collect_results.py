@@ -15,10 +15,11 @@ def collect_results(json_files, benchmark_dir, output_path):
         # Try to find matching snakemake benchmark TSV for max_rss
         n_genes = rec["n_genes"]
         n_cells = rec["n_cells"]
+        nperm = rec.get("nperm", "")
         rep = rec["rep"]
         bm_path = os.path.join(
             benchmark_dir,
-            f"genes{n_genes}_cells{n_cells}_rep{rep}.tsv",
+            f"genes{n_genes}_cells{n_cells}_nperm{nperm}_rep{rep}.tsv",
         )
         if os.path.exists(bm_path):
             bm = pd.read_csv(bm_path, sep="\t")
@@ -28,7 +29,9 @@ def collect_results(json_files, benchmark_dir, output_path):
         records.append(rec)
 
     df = pd.DataFrame(records)
-    df.sort_values(["n_genes", "n_cells", "rep"], inplace=True)
+    sort_cols = ["n_genes", "n_cells", "nperm", "rep"]
+    sort_cols = [c for c in sort_cols if c in df.columns]
+    df.sort_values(sort_cols, inplace=True)
     df.to_csv(output_path, sep="\t", index=False)
 
 

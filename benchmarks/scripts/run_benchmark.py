@@ -61,6 +61,7 @@ def run_benchmark(h5ad_path, n_genes, n_cells, rep, capvar, nperm, thres, output
     result = {
         "n_genes": int(n_genes),
         "n_cells": int(n_cells),
+        "nperm": int(nperm),
         "rep": int(rep),
         "svd_time_s": round(svd_time, 4),
         "perm_time_s": round(perm_time, 4),

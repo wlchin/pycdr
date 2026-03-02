@@ -9,6 +9,12 @@ from matplotlib.colors import LogNorm
 def plot_benchmark(summary_path, output_path):
     df = pd.read_csv(summary_path, sep="\t")
 
+    # Filter to reference nperm so panels retain original semantics when TSV
+    # contains multiple nperm values from the permutation benchmark grid.
+    REF_NPERM = 500
+    if "nperm" in df.columns:
+        df = df[df["nperm"] == REF_NPERM]
+
     # Compute medians across repeats
     median = df.groupby(["n_genes", "n_cells"]).median(numeric_only=True).reset_index()
 
