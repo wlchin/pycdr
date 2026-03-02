@@ -12,8 +12,10 @@ from .feature_selection import calculate_minmax
 logger = logging.getLogger(__name__)
 
 
-def run_CDR_analysis(data, phenotype, capvar=0.95, nperm=2000, thres=0.05,
-                     seed=42, correction="fdr_bh", quiet=False, **kwargs):
+def run_CDR_analysis(data, phenotype, capvar=0.95, nperm=10000, thres=0.05,
+                     seed=42, correction="fdr_bh", quiet=False,
+                     batch_size=None, adaptive=True, method="exact",
+                     **kwargs):
     """Main CDR-g analysis function
 
         The key step in CDR-g is an SVD-decomposition on gene
@@ -26,13 +28,17 @@ def run_CDR_analysis(data, phenotype, capvar=0.95, nperm=2000, thres=0.05,
         data (anndata): anndata object of interest
         phenotype (str): condition of interest
         capvar (float, optional): factor loadings to examine. Defaults to 0.95.
-        nperm (int, optional): nperms to determine importance score. Defaults to 2000.
+        nperm (int, optional): nperms to determine importance score. Defaults to 10000.
         thres (float, optional): cut-off for permutation importance to select genes. Defaults to 0.05.
         seed (int, optional): Random seed for reproducibility. Defaults to 42.
         correction (str, optional): Multiple testing correction method.
             ``"fdr_bh"`` for Benjamini-Hochberg FDR, ``"none"`` for no
             correction. Defaults to ``"fdr_bh"``.
         quiet (bool, optional): If True, suppress progress bars. Defaults to False.
+        batch_size (int or None, optional): Permutations per batch. None = auto.
+        adaptive (bool, optional): Enable adaptive early stopping. Defaults to False.
+        method (str, optional): P-value method: ``"exact"``, ``"normal"``,
+            ``"gpd"``, or ``"auto"``. Defaults to ``"exact"``.
 
     Returns:
         None. Results are stored in-place on *data.uns*: ``Fs``, ``Ls``,
@@ -76,7 +82,9 @@ def run_CDR_analysis(data, phenotype, capvar=0.95, nperm=2000, thres=0.05,
 
     t2 = time.time()
     get_significant_genes(data, npheno, permnum=nperm, thres=thres, seed=seed,
-                          correction=correction, quiet=quiet)
+                          correction=correction, quiet=quiet,
+                          batch_size=batch_size, adaptive=adaptive,
+                          method=method)
     t3 = time.time()
     logger.info("Permutation testing: %.1fs", t3 - t2)
 

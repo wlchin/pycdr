@@ -224,17 +224,25 @@ def info(input, phenotype, subset, verbose, quiet):
 @click.option("-p", "--phenotype", required=True, help="Condition column in adata.obs.")
 @click.option("-o", "--output", default=None, help="Output .h5ad path.")
 @click.option("--capvar", default=0.95, show_default=True, help="Variance threshold.")
-@click.option("--nperm", default=2000, show_default=True, help="Permutations for importance scores.")
+@click.option("--nperm", default=10000, show_default=True, help="Permutations for importance scores.")
 @click.option("--pernum", default=None, type=int, hidden=True, help="Deprecated alias for --nperm.")
 @click.option("--thres", default=0.05, show_default=True, help="P-value threshold for gene selection.")
 @click.option("--seed", default=42, show_default=True, help="Random seed for reproducibility.")
 @click.option("--correction", default="fdr_bh", show_default=True,
               type=click.Choice(["fdr_bh", "none"]), help="Multiple testing correction method.")
+@click.option("--batch-size", default=None, type=int,
+              help="Permutations per batch (default: auto-sized to fit 256 MB).")
+@click.option("--adaptive/--no-adaptive", default=True, show_default=True,
+              help="Enable adaptive early stopping when all genes are decided.")
+@click.option("--perm-method", default="exact", show_default=True,
+              type=click.Choice(["exact", "normal", "gpd", "auto"]),
+              help="P-value method: exact (brute force), normal, gpd, or auto.")
 @click.option("-s", "--subset", multiple=True,
               help="Subset cells: COLUMN=VALUE[,VALUE2]. Repeatable.")
 @click.option("-v", "--verbose", count=True, help="Increase verbosity (-v INFO, -vv DEBUG).")
 @click.option("-q", "--quiet", is_flag=True, help="Errors only.")
-def analyze(input, phenotype, output, capvar, nperm, pernum, thres, seed, correction, subset, verbose, quiet):
+def analyze(input, phenotype, output, capvar, nperm, pernum, thres, seed, correction,
+            batch_size, adaptive, perm_method, subset, verbose, quiet):
     """Run CDR-g SVD/varimax analysis."""
     _setup_logging(verbose, quiet)
     from .pycdr import run_CDR_analysis
@@ -252,7 +260,9 @@ def analyze(input, phenotype, output, capvar, nperm, pernum, thres, seed, correc
 
     logger.info("Running CDR-g analysis on %s", input)
     run_CDR_analysis(adata, phenotype, capvar=capvar, nperm=nperm, thres=thres,
-                     seed=seed, correction=correction, quiet=quiet)
+                     seed=seed, correction=correction, quiet=quiet,
+                     batch_size=batch_size, adaptive=adaptive,
+                     method=perm_method)
 
     adata.uns["cdr_params"] = {
         "phenotype": phenotype,
@@ -262,6 +272,9 @@ def analyze(input, phenotype, output, capvar, nperm, pernum, thres, seed, correc
         "seed": seed,
         "correction": correction,
         "subset": list(subset) if subset else [],
+        "batch_size": batch_size,
+        "adaptive": adaptive,
+        "perm_method": perm_method,
     }
 
     n_factors = len(adata.uns["factor_loadings"])
@@ -508,10 +521,17 @@ def report(input, phenotype, output, verbose, quiet):
 @click.option("-o", "--output", default=None, help="Output .h5ad path.")
 @click.option("-c", "--csv", default=None, help="Export results CSV.")
 @click.option("--capvar", default=0.95, show_default=True, help="Variance threshold.")
-@click.option("--nperm-analysis", "nperm_analysis", default=2000, show_default=True,
+@click.option("--nperm-analysis", "nperm_analysis", default=10000, show_default=True,
               help="Permutations for importance scores.")
 @click.option("--pernum", default=None, type=int, hidden=True, help="Deprecated alias for --nperm-analysis.")
 @click.option("--thres", default=0.05, show_default=True, help="P-value threshold.")
+@click.option("--batch-size", "run_batch_size", default=None, type=int,
+              help="Permutations per batch (default: auto).")
+@click.option("--adaptive/--no-adaptive", "run_adaptive", default=True, show_default=True,
+              help="Enable adaptive early stopping.")
+@click.option("--perm-method", "run_perm_method", default="exact", show_default=True,
+              type=click.Choice(["exact", "normal", "gpd", "auto"]),
+              help="P-value method for permutation testing.")
 @click.option("--filter-method", default="none", show_default=True,
               type=click.Choice(["none", "percent", "numcells"]), help="Gene filter method.")
 @click.option("--cell-fraction", default=0.05, show_default=True)
@@ -535,6 +555,7 @@ def report(input, phenotype, output, verbose, quiet):
 @click.option("-v", "--verbose", count=True)
 @click.option("-q", "--quiet", is_flag=True)
 def run(input, phenotype, output, csv, capvar, nperm_analysis, pernum, thres,
+        run_batch_size, run_adaptive, run_perm_method,
         filter_method, cell_fraction, median_count, count_threshold, min_cells,
         enrich, enrich_method, genecol, nperm, enrich_thresh, seed, correction,
         subset, report_path, verbose, quiet):
@@ -568,7 +589,9 @@ def run(input, phenotype, output, csv, capvar, nperm_analysis, pernum, thres,
     # --- analyze ---
     logger.info("Running CDR-g analysis")
     run_CDR_analysis(adata, phenotype, capvar=capvar, nperm=nperm_analysis, thres=thres,
-                     seed=seed, correction=correction, quiet=quiet)
+                     seed=seed, correction=correction, quiet=quiet,
+                     batch_size=run_batch_size, adaptive=run_adaptive,
+                     method=run_perm_method)
     n_factors = len(adata.uns["factor_loadings"])
     _echo(f"CDR-g analysis complete: {n_factors} factors")
 

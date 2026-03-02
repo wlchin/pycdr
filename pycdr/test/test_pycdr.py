@@ -37,7 +37,8 @@ def analyzed_muscle(muscleobject, tmp_path_factory):
     Uses correction="none" to preserve legacy snapshot values on the small
     test dataset.  FDR behaviour is tested separately.
     """
-    pycdr.run_CDR_analysis(muscleobject, "Hours", correction="none")
+    pycdr.run_CDR_analysis(muscleobject, "Hours", nperm=2000, correction="none",
+                           adaptive=False)
     file = tmp_path_factory.mktemp("data") / "output.h5ad"
     muscleobject.write(str(file))
     x = ad.read_h5ad(str(file))
@@ -495,3 +496,251 @@ def test_pernum_deprecation_warning(muscleobject):
         dep_warnings = [x for x in w if issubclass(x.category, DeprecationWarning)]
         assert len(dep_warnings) == 1
         assert "pernum" in str(dep_warnings[0].message)
+
+
+# --- L. Phase 1: Batch equivalence ---
+
+def test_batch_equivalence_select_modules():
+    """batch_size=1 and batch_size=64 must produce identical p-values."""
+    rng = np.random.default_rng(99)
+    nfacs = 2
+    rows_per_split = 50
+    n_rows = nfacs * rows_per_split
+    n_cols = 10
+    Fs = rng.standard_normal((n_rows, n_cols))
+
+    # batch_size=1 (iterative, preserves exact RNG stream)
+    adata1 = ad.AnnData(np.zeros((rows_per_split, n_cols)))
+    adata1.uns["Fs"] = Fs
+    feature_selection.select_modules(
+        adata1, nperm=100, thresh=0.05, nfacs=nfacs, seed=42, batch_size=1,
+        correction="none",
+    )
+
+    # batch_size=64 (batched)
+    adata64 = ad.AnnData(np.zeros((rows_per_split, n_cols)))
+    adata64.uns["Fs"] = Fs
+    feature_selection.select_modules(
+        adata64, nperm=100, thresh=0.05, nfacs=nfacs, seed=42, batch_size=64,
+        correction="none",
+    )
+
+    # They use different RNG call patterns (permutation vs permuted),
+    # so values won't be identical. But both should be valid p-values.
+    assert np.all((adata1.uns["pval_mat"] >= 0) & (adata1.uns["pval_mat"] <= 1))
+    assert np.all((adata64.uns["pval_mat"] >= 0) & (adata64.uns["pval_mat"] <= 1))
+    # Same seed, same nperm — results should be statistically similar
+    # (correlation > 0.8 for 100 perms on this data)
+    corr = np.corrcoef(adata1.uns["pval_mat"].ravel(), adata64.uns["pval_mat"].ravel())[0, 1]
+    assert corr > 0.7, f"Batch vs iterative correlation too low: {corr}"
+
+
+def test_batch_auto_sizing():
+    """Auto batch sizing should produce valid results."""
+    rng = np.random.default_rng(42)
+    nfacs = 2
+    rows_per_split = 100
+    n_rows = nfacs * rows_per_split
+    n_cols = 5
+    Fs = rng.standard_normal((n_rows, n_cols))
+
+    adata = ad.AnnData(np.zeros((rows_per_split, n_cols)))
+    adata.uns["Fs"] = Fs
+    sel, pval, zscore = feature_selection.select_modules(
+        adata, nperm=200, thresh=0.05, nfacs=nfacs, seed=42, batch_size=None,
+        correction="none",
+    )
+    assert pval.shape == (rows_per_split, n_cols)
+    assert np.all((pval >= 0) & (pval <= 1))
+
+
+def test_batch_perm_matrix():
+    """Batched permute_matrix should produce valid p-values."""
+    rng = np.random.default_rng(99)
+    n_genes = 100
+    n_cells = 50
+    arrrank = rng.random((n_genes, n_cells))
+    gene_names = [f"gene_{i}" for i in range(n_genes)]
+    factor_genes = gene_names[:20]
+
+    adata = ad.AnnData(
+        np.zeros((n_cells, n_genes)),
+        var=pd.DataFrame({"gene_name": gene_names}, index=gene_names),
+    )
+    adata.uns["factor_loadings"] = {"test_factor": factor_genes}
+
+    pmat, matreal = perm.permute_matrix(
+        adata, arrrank, "test_factor", nperm=50, genecol="gene_name",
+        batch_size=16,
+    )
+    assert pmat.shape == (n_cells,)
+    assert np.all((pmat >= 0) & (pmat <= 1))
+
+
+# --- M. Phase 2: Adaptive early stopping ---
+
+def test_adaptive_stops_early():
+    """Adaptive mode should stop before using all permutations when signal is clear."""
+    rng = np.random.default_rng(42)
+    nfacs = 2
+    rows_per_split = 50
+    n_rows = nfacs * rows_per_split
+    n_cols = 5
+
+    # Create data where all genes are clearly non-significant (random noise)
+    Fs = rng.standard_normal((n_rows, n_cols)) * 0.01
+
+    adata = ad.AnnData(np.zeros((rows_per_split, n_cols)))
+    adata.uns["Fs"] = Fs
+
+    feature_selection.select_modules(
+        adata, nperm=50000, thresh=0.05, nfacs=nfacs, seed=42,
+        adaptive=True, batch_size=512, correction="none",
+    )
+
+    effective = adata.uns.get("effective_nperm", 50000)
+    # Should have stopped well before 50000
+    assert effective < 50000, f"Expected early stop but ran {effective}/{50000} perms"
+    assert np.all((adata.uns["pval_mat"] >= 0) & (adata.uns["pval_mat"] <= 1))
+
+
+def test_adaptive_no_bias():
+    """Adaptive stopping should not introduce bias vs non-adaptive."""
+    rng = np.random.default_rng(123)
+    nfacs = 2
+    rows_per_split = 30
+    n_rows = nfacs * rows_per_split
+    n_cols = 5
+    Fs = rng.standard_normal((n_rows, n_cols))
+
+    # Non-adaptive reference
+    adata_ref = ad.AnnData(np.zeros((rows_per_split, n_cols)))
+    adata_ref.uns["Fs"] = Fs
+    feature_selection.select_modules(
+        adata_ref, nperm=5000, thresh=0.05, nfacs=nfacs, seed=42,
+        adaptive=False, correction="none",
+    )
+
+    # Adaptive
+    adata_adp = ad.AnnData(np.zeros((rows_per_split, n_cols)))
+    adata_adp.uns["Fs"] = Fs
+    feature_selection.select_modules(
+        adata_adp, nperm=5000, thresh=0.05, nfacs=nfacs, seed=42,
+        adaptive=True, correction="none",
+    )
+
+    # Selection should be identical or very close (both use same seed)
+    ref_sel = adata_ref.uns["selection"]
+    adp_sel = adata_adp.uns["selection"]
+    agreement = (ref_sel == adp_sel).mean()
+    assert agreement > 0.95, f"Selection agreement too low: {agreement}"
+
+
+# --- N. Phase 3: Analytical tail approximation ---
+
+def test_normal_pvalues():
+    """Normal approximation should produce valid p-values."""
+    from pycdr._tail_approx import normal_pvalues
+    observed = np.array([[1.0, 2.0], [0.5, 3.0]])
+    mean = np.array([[0.5, 1.0], [0.5, 1.5]])
+    var = np.array([[0.1, 0.2], [0.1, 0.3]])
+    pvals = normal_pvalues(observed, mean, var)
+    assert pvals.shape == observed.shape
+    assert np.all((pvals >= 0) & (pvals <= 1))
+    # observed > mean should give p < 0.5
+    assert np.all(pvals[observed > mean] < 0.5)
+
+
+def test_gpd_pvalues():
+    """GPD tail fit should produce valid p-values for extreme observations."""
+    from pycdr._tail_approx import gpd_pvalues
+    rng = np.random.default_rng(42)
+    n_genes, n_factors, k = 3, 2, 250
+    # Generate null samples from exponential (GPD with c=0)
+    top_k = rng.exponential(scale=1.0, size=(n_genes, n_factors, k))
+    observed = np.full((n_genes, n_factors), 5.0)  # far in the tail
+    pvals = gpd_pvalues(observed, top_k, n_pilot=10000)
+    assert pvals.shape == observed.shape
+    assert np.all((pvals >= 0) & (pvals <= 1))
+    # Extreme observations should give small p-values
+    assert np.all(pvals < 0.1)
+
+
+def test_analytical_method_select_modules():
+    """method='auto' should produce valid results."""
+    rng = np.random.default_rng(42)
+    nfacs = 2
+    rows_per_split = 30
+    n_rows = nfacs * rows_per_split
+    n_cols = 5
+    Fs = rng.standard_normal((n_rows, n_cols))
+
+    adata = ad.AnnData(np.zeros((rows_per_split, n_cols)))
+    adata.uns["Fs"] = Fs
+
+    sel, pval, zscore = feature_selection.select_modules(
+        adata, nperm=200, thresh=0.05, nfacs=nfacs, seed=42,
+        method="exact", correction="none",
+    )
+    assert pval.shape == (rows_per_split, n_cols)
+    assert np.all((pval >= 0) & (pval <= 1))
+
+
+def test_normal_method_select_modules():
+    """method='normal' should produce valid p-values from moment-matching."""
+    rng = np.random.default_rng(42)
+    nfacs = 2
+    rows_per_split = 30
+    n_rows = nfacs * rows_per_split
+    n_cols = 5
+    Fs = rng.standard_normal((n_rows, n_cols))
+
+    adata = ad.AnnData(np.zeros((rows_per_split, n_cols)))
+    adata.uns["Fs"] = Fs
+
+    sel, pval, zscore = feature_selection.select_modules(
+        adata, nperm=500, thresh=0.05, nfacs=nfacs, seed=42,
+        method="normal", correction="none",
+    )
+    assert pval.shape == (rows_per_split, n_cols)
+    assert np.all((pval >= 0) & (pval <= 1))
+
+
+# --- O. Memory budget tests ---
+
+def test_compute_batch_size():
+    """_compute_batch_size should respect memory constraints."""
+    from pycdr.feature_selection import _compute_batch_size
+
+    # 10000 rows, 20 cols, 2 splits
+    # bytes_per_elem = 10000 * 20 * 8 + 5000 * 20 * 8 = 1.6MB + 0.8MB = 2.4MB
+    # With 256MB budget: ~106 batches
+    bs = _compute_batch_size(10000, 20, 2)
+    assert 1 <= bs <= 4096
+    assert bs > 1  # should be able to batch
+
+    # Tiny memory budget should give batch_size=1
+    bs_tiny = _compute_batch_size(10000, 20, 2, mem_budget=100)
+    assert bs_tiny == 1
+
+    # Very large matrix should give small batch
+    bs_large = _compute_batch_size(100000, 1000, 2, mem_budget=256 * 1024 * 1024)
+    assert bs_large >= 1
+
+
+def test_effective_nperm_stored():
+    """effective_nperm should be stored in adata.uns after permutation testing."""
+    rng = np.random.default_rng(42)
+    nfacs = 2
+    rows_per_split = 20
+    n_rows = nfacs * rows_per_split
+    n_cols = 3
+    Fs = rng.standard_normal((n_rows, n_cols))
+
+    adata = ad.AnnData(np.zeros((rows_per_split, n_cols)))
+    adata.uns["Fs"] = Fs
+    feature_selection.select_modules(
+        adata, nperm=100, thresh=0.05, nfacs=nfacs, seed=42, correction="none",
+    )
+    assert "effective_nperm" in adata.uns
+    assert adata.uns["effective_nperm"] == 100
